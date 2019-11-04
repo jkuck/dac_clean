@@ -55,6 +55,13 @@ class MultivariateNormalDiag(MultivariateNormal):
         sigma = (math.log(0.25) + 0.1*torch.randn(shape)).exp().to(device)
         return torch.cat([mu, sigma], -1)
 
+    def sample_params_jdk(self, shape, device='cpu'):
+        shape = torch.Size(shape) + torch.Size([self.dim])
+        mu = -6 + 12*torch.rand(shape).to(device)
+        sigma = .1*torch.ones(shape).to(device)
+        return torch.cat([mu, sigma], -1)
+
+
     def sample(self, params):
         mu = params[...,:self.dim]
         sigma = params[...,self.dim:]

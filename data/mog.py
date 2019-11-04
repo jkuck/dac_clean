@@ -15,6 +15,7 @@ def sample_mog(B, N, K,
             if rand_N else N
     labels = sample_labels(B, N, K, alpha=alpha, rand_K=rand_K, device=device)
     params = mvn.sample_params([B, K], device=device)
+    # params = mvn.sample_params_jdk([B, K], device=device)
     gathered_params = torch.gather(params, 1,
             labels.unsqueeze(-1).repeat(1, 1, params.shape[-1]))
     X = mvn.sample(gathered_params)
@@ -28,6 +29,59 @@ def sample_mog(B, N, K,
         pi = labels.float().sum(1, keepdim=True) / N
         ll = mvn.log_prob(X, params) + (pi+1e-10).log()
         dataset['ll'] = ll.logsumexp(-1).mean().item()
+    return dataset
+
+
+def sample_mog_FP(B, N, K, sample_K=False, det_per_cluster=50, dim=2, onehot=True,
+ add_false_positives=False, FP_count=64, meas_std=.1):
+    # sleep(temps)
+    device = 'cpu' if not torch.cuda.is_available() \
+            else torch.cuda.current_device()
+
+    if sample_K:
+        K = np.random.randint(1,K+1)
+
+    pi = torch.ones(B,K).to(device) #fix pi to have even size clusters
+  
+    # assert(N==K*det_per_cluster)
+    N = K*det_per_cluster
+    labels = torch.tensor([i//det_per_cluster for i in range(K*det_per_cluster)]).to(device)
+    # labels = []
+    # labels = torch.tensor([i//det_per_cluster for i in range(N)]).to(device)
+    # for b_idx in range(B):
+    #     num_clusters = np.random.randint(1,K+1)
+    #     labels = torch.tensor([i//det_per_cluster for i in range(num_clusters*det_per_cluster)]).to(device)
+    #     print("labels:", labels)
+    # sleep(temps)
+    labels = labels.repeat(B,1)
+
+    gt_objects = -4 + 8*torch.rand(B, K, dim).to(device)
+    # gt_objects = -6 + 12*torch.rand(B, K, dim).to(device)
+    sigma = meas_std*torch.ones(B, K, dim).to(device)
+    eps = torch.randn(B, N, dim).to(device)
+
+    rlabels = labels.unsqueeze(-1).repeat(1, 1, dim)
+    X = torch.gather(gt_objects, 1, rlabels) + \
+            eps * torch.gather(sigma, 1, rlabels)
+
+    if add_false_positives:
+        false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
+        X = torch.cat([X, false_positives], dim=1)
+        labels = torch.tensor([i//det_per_cluster for i in range(K*det_per_cluster)] + [K for i in range(FP_count)]).to(device)
+        labels = labels.repeat(B,1)
+
+    if onehot:
+        if add_false_positives:
+            # print("labels:", labels)
+            labels = F.one_hot(labels, K+1)
+        else:        
+            labels = F.one_hot(labels, K)        
+
+ #   print("labels:", labels)
+ #   print("labels.shape:", labels.shape)
+ #   sleep(labelcheck)
+
+    dataset = {"X":X, "labels":labels, "gt_objects":gt_objects, "ll": -1}
     return dataset
 
 def sample_warped_mog(B, N, K,

@@ -11,7 +11,7 @@ from utils.misc import add_args
 from utils.plots import scatter, draw_ellipse, scatter_mog
 
 from data.mvn import MultivariateNormalDiag
-from data.mog import sample_mog
+from data.mog import sample_mog, sample_mog_FP
 
 from neural.attention import StackedISAB, PMA, MAB
 
@@ -48,7 +48,7 @@ class FindCluster(nn.Module):
         self.isab2 = StackedISAB(dim_hids, dim_hids, num_inds, 4)
         self.fc2 = nn.Linear(dim_hids, 1)
 
-    def forward(self, X, mask=None):
+    def forward(self, X, mask=None, predict_from_clustering=True):
         H_enc = self.isab1(X, mask=mask)
         Z = self.pma(H_enc, mask=mask)
         params = self.mvn.transform(self.fc1(Z))
@@ -56,6 +56,24 @@ class FindCluster(nn.Module):
 
         H_dec = self.mab(H_enc, Z)
         logits = self.fc2(self.isab2(H_dec, mask=mask))
+
+        if predict_from_clustering:
+            # print("params.shape:", params.shape)
+            # sleep(temps)
+            logit_threshold = 0
+            if mask is not None:
+                # print("torch.sum(mask[0]):", torch.sum(mask[0]))
+                clustered_TP_indices = torch.where((logits.repeat(1,1,2)>logit_threshold) * #logical and
+                                                   (mask == 0))
+            else:
+                clustered_TP_indices = torch.where(logits.repeat(1,1,2)>logit_threshold)
+            clusters = X[clustered_TP_indices]
+
+            for b_idx in range(params.shape[0]):
+                if torch.where(clustered_TP_indices[0] == b_idx)[0].size()[0] > 0:
+                    # print("params[b_idx,0,:2].shape:", params[b_idx,0,:2].shape)
+                    # print("torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape:", torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape)
+                    params[b_idx,0,:2] = torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0)
 
         return params, ll, logits
 
@@ -65,7 +83,8 @@ class Model(ModelTemplate):
         self.testfile = os.path.join(benchmarks_path,
                 'mog_10_1000_4.tar' if self.testfile is None else self.testfile)
         self.clusterfile = os.path.join(benchmarks_path,
-                'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
+                # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
+                'mog_10_100_12.tar' if self.clusterfile is None else self.clusterfile)
         self.net = FindCluster(MultivariateNormalDiag(2))
 
     def gen_benchmarks(self, force=False):
@@ -80,12 +99,19 @@ class Model(ModelTemplate):
             print('generating benchmark {}...'.format(self.clusterfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog(10, 3000, 12,
+                # bench.append(sample_mog(10, 3000, 12,
+                bench.append(sample_mog(10, 600, 12,
                     rand_N=True, rand_K=True, return_ll=True))
+ #                bench.append(sample_mog_FP(B=10, N=-1, K=12, sample_K=False, det_per_cluster=4, dim=2,
+ # onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))
             torch.save(bench, self.clusterfile)
 
     def sample(self, B, N, K, **kwargs):
         return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
+
+    def sample_mog_FP(self, B, N, K, **kwargs):
+        return sample_mog_FP(B, N, K, **kwargs)
+
 
     def plot_clustering(self, X, params, labels):
         B = X.shape[0]
