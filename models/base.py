@@ -33,6 +33,67 @@ def compute_cluster_loss(ll, logits, labels):
     bcent = bcent[bidx, idx[bidx]].mean()
     return loss, ll, bcent
 
+def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects, weight=None, lamb=1.0, verbose=False):
+    '''
+    directly regress ground truth object positions using a distance loss
+    instead of log likelihood
+    '''
+    if verbose:
+        print("labels.shape:", labels.shape)
+        print("labels:", labels)
+        print("logits.shape:", logits.shape)
+        print("logits", logits)
+    B, K = labels.shape[0], labels.shape[-1]
+
+    if weight is None:
+        bcent = F.binary_cross_entropy_with_logits(
+                logits.repeat(1, 1, K),
+                labels, reduction='none').mean(1)
+    else:
+        bcent = F.binary_cross_entropy_with_logits(
+                logits.repeat(1, 1, K),
+                labels, reduction='none', pos_weight=torch.tensor(weight)).mean(1)
+   
+    
+    if verbose:
+        print("bcent.shape:", bcent.shape)
+    assert(len(pred_cluster.shape) == 3), (pred_cluster.shape)
+    batch_size, dummy_one, dim = pred_cluster.shape
+    assert(batch_size == B)
+    assert(dummy_one == 1)
+    assert(len(gt_objects.shape) == 3), (gt_objects.shape, pred_cluster.shape)
+    batch_size1, gt_obj_count, dim1 = gt_objects.shape
+    assert(batch_size1 == B)
+    assert(dim == dim1)
+    distances = torch.cdist(gt_objects.contiguous(), pred_cluster.contiguous())
+    distances = distances.squeeze(dim=2)
+
+    assert((batch_size, gt_obj_count) == distances.shape), (batch_size, gt_obj_count, distances.shape)
+
+
+    loss = lamb * bcent[:,:-1] + distances #exclude FP class
+    # loss = lamb * bcent + distances
+    # print("loss:", loss[0])
+    
+
+    if verbose:
+        print("loss.shape:", loss.shape)
+    loss, idx = loss.min(1)
+    # print("loss:", loss[0])
+    if verbose:
+        print("loss idx.shape:", idx.shape)
+    bidx = loss != float('inf')
+    # print("loss[bidx]:", loss[bidx])
+
+    loss = loss[bidx].mean()
+    if verbose:
+        print("post mean loss.shape:", loss.shape)
+    bcent = bcent[bidx, idx[bidx]].mean()
+    if verbose:
+        print("post mean bcent.shape:", bcent.shape)
+    # sleep(checklabelshape)
+    return loss, bcent
+
 class ModelTemplate(object):
     def __init__(self, args):
         for key, value in args.__dict__.items():
@@ -70,7 +131,10 @@ class ModelTemplate(object):
         params, ll, logits = self.net(X)
 #         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
         loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
-        
+    
+        gt_objects = batch['gt_objects'].cuda()
+        pred_cluster = params[:,:,:2]
+        compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects) 
         if train:
             return loss
         else:

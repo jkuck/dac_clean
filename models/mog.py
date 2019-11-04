@@ -99,8 +99,8 @@ class Model(ModelTemplate):
             print('generating benchmark {}...'.format(self.clusterfile))
             bench = []
             for _ in range(100):
-                # bench.append(sample_mog(10, 3000, 12,
-                bench.append(sample_mog(10, 600, 12,
+                bench.append(sample_mog(10, 3000, 12,
+#                 bench.append(sample_mog(10, 600, 12,
                     rand_N=True, rand_K=True, return_ll=True))
  #                bench.append(sample_mog_FP(B=10, N=-1, K=12, sample_K=False, det_per_cluster=4, dim=2,
  # onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))

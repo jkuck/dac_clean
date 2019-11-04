@@ -41,13 +41,27 @@ def sample_mog(B, N, K,
         else:        
             labels = F.one_hot(labels, K) 
             
-    dataset = {'X':X, 'labels':labels}
+    gt_objects = params[:, :, :2]
+    dataset = {'X':X, 'labels':labels, "gt_objects":gt_objects}
     if return_ll:
         if not onehot:
             labels = F.one_hot(labels, K)
         # recover pi from labels
-        pi = labels.float().sum(1, keepdim=True) / N
-        ll = mvn.log_prob(X, params) + (pi+1e-10).log()
+        if add_false_positives:
+#             print("X[:, :-FP_count, :].shape:", X[:, :-FP_count, :].shape)
+#             print("X.shape:", X.shape)
+#             print("labels.shape:", labels.shape)
+#             print("labels[:, :-FP_count, :-1].shape:", labels[:, :-FP_count, :-1].shape)
+#             sleep(lasfjdkls)
+            pi = labels[:, :-FP_count, :-1].float().sum(1, keepdim=True) / N
+            ll = mvn.log_prob(X[:, :-FP_count, :], params) + (pi+1e-10).log()
+            
+        else:
+#             print("X.shape:", X.shape)
+#             print("labels.shape:", labels.shape)
+            sleep(temp)
+            pi = labels.float().sum(1, keepdim=True) / N
+            ll = mvn.log_prob(X, params) + (pi+1e-10).log()
         dataset['ll'] = ll.logsumexp(-1).mean().item()
     return dataset
 
