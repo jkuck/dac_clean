@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.paths import benchmarks_path
+from utils.paths import benchmarks_path, results_path
 from utils.misc import add_args
 from utils.plots import scatter, draw_ellipse, scatter_mog
 
@@ -21,12 +21,14 @@ parser = argparse.ArgumentParser()
 
 # for training
 parser.add_argument('--B', type=int, default=100)
-parser.add_argument('--N', type=int, default=40)
+parser.add_argument('--N', type=int, default=1000)
 parser.add_argument('--K', type=int, default=4)
 parser.add_argument('--lr', type=float, default=5e-4)
 parser.add_argument('--num_steps', type=int, default=20000)
 parser.add_argument('--testfile', type=str, default=None)
 parser.add_argument('--clusterfile', type=str, default=None)
+
+parser.add_argument('--run_name', type=str, default='trial')
 
 # for visualization
 parser.add_argument('--vB', type=int, default=10)
@@ -34,6 +36,8 @@ parser.add_argument('--vN', type=int, default=1000)
 parser.add_argument('--vK', type=int, default=4)
 
 sub_args, _ = parser.parse_known_args()
+
+save_dir = os.path.join(results_path, 'mog', sub_args.run_name)
 
 class FindCluster(nn.Module):
     def __init__(self, mvn, dim_hids=128, num_inds=32):
@@ -48,7 +52,7 @@ class FindCluster(nn.Module):
         self.isab2 = StackedISAB(dim_hids, dim_hids, num_inds, 4)
         self.fc2 = nn.Linear(dim_hids, 1)
 
-    def forward(self, X, mask=None, predict_from_clustering=True):
+    def forward(self, X, mask=None, predict_from_clustering=False):
         H_enc = self.isab1(X, mask=mask)
         Z = self.pma(H_enc, mask=mask)
         params = self.mvn.transform(self.fc1(Z))
@@ -80,9 +84,9 @@ class FindCluster(nn.Module):
 class Model(ModelTemplate):
     def __init__(self, args):
         super().__init__(args)
-        self.testfile = os.path.join(benchmarks_path,
+        self.testfile = os.path.join(save_dir,
                 'mog_10_1000_4.tar' if self.testfile is None else self.testfile)
-        self.clusterfile = os.path.join(benchmarks_path,
+        self.clusterfile = os.path.join(save_dir,
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
                 'mog_10_100_12.tar' if self.clusterfile is None else self.clusterfile)
         self.net = FindCluster(MultivariateNormalDiag(2))
@@ -92,14 +96,14 @@ class Model(ModelTemplate):
             print('generating benchmark {}...'.format(self.testfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog(10, 1000, 4,
+                bench.append(sample_mog(10, N, 4,
                     rand_N=True, rand_K=True, return_ll=True))
             torch.save(bench, self.testfile)
         if not os.path.isfile(self.clusterfile) or force:
             print('generating benchmark {}...'.format(self.clusterfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog(10, 3000, 12,
+                bench.append(sample_mog(10, N*4, 16,
 #                 bench.append(sample_mog(10, 600, 12,
                     rand_N=True, rand_K=True, return_ll=True))
  #                bench.append(sample_mog_FP(B=10, N=-1, K=12, sample_K=False, det_per_cluster=4, dim=2,
