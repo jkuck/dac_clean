@@ -8,7 +8,7 @@ def sample_mog(B, N, K,
         mvn=None, return_ll=False,
         alpha=1.0, onehot=True,
         rand_N=True, rand_K=True,
-        device='cpu', add_false_positives=False,
+        device='cpu', add_false_positives=True,
         FP_count=64):
 
     mvn = MultivariateNormalDiag(2) if mvn is None else mvn

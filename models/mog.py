@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser()
 
 # for training
 parser.add_argument('--B', type=int, default=100)
-parser.add_argument('--N', type=int, default=1000)
+parser.add_argument('--N', type=int, default=40)
 parser.add_argument('--K', type=int, default=4)
 parser.add_argument('--lr', type=float, default=5e-4)
 parser.add_argument('--num_steps', type=int, default=20000)
