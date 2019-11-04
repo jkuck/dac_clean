@@ -19,6 +19,20 @@ def compute_filter_loss(ll, logits, labels, lamb=1.0):
     bcent = bcent[bidx, idx[bidx]].mean()
     return loss, ll, bcent
 
+def compute_cluster_loss(ll, logits, labels):
+    B, K = labels.shape[0], labels.shape[-1]
+    bcent = F.binary_cross_entropy_with_logits(
+            logits.repeat(1, 1, K),
+            labels, reduction='none').mean(1)
+    loss = bcent - ll
+    loss, idx = loss.min(1)
+    bidx = loss != float('inf')
+
+    loss = loss[bidx].mean()
+    ll = -1
+    bcent = bcent[bidx, idx[bidx]].mean()
+    return loss, ll, bcent
+
 class ModelTemplate(object):
     def __init__(self, args):
         for key, value in args.__dict__.items():
@@ -54,7 +68,9 @@ class ModelTemplate(object):
         X = batch['X'].cuda()
         labels = batch['labels'].cuda().float()
         params, ll, logits = self.net(X)
-        loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
+#         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
+        loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
+        
         if train:
             return loss
         else:

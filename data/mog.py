@@ -14,8 +14,8 @@ def sample_mog(B, N, K,
     N = torch.randint(int(0.3*N), N, [1], dtype=torch.long).item() \
             if rand_N else N
     labels = sample_labels(B, N, K, alpha=alpha, rand_K=rand_K, device=device)
-    params = mvn.sample_params([B, K], device=device)
-    # params = mvn.sample_params_jdk([B, K], device=device)
+#     params = mvn.sample_params([B, K], device=device)
+    params = mvn.sample_params_jdk([B, K], device=device)
     gathered_params = torch.gather(params, 1,
             labels.unsqueeze(-1).repeat(1, 1, params.shape[-1]))
     X = mvn.sample(gathered_params)
