@@ -8,7 +8,8 @@ def sample_mog(B, N, K,
         mvn=None, return_ll=False,
         alpha=1.0, onehot=True,
         rand_N=True, rand_K=True,
-        device='cpu'):
+        device='cpu', add_false_positives=True,
+        FP_count=64):
 
     mvn = MultivariateNormalDiag(2) if mvn is None else mvn
     N = torch.randint(int(0.3*N), N, [1], dtype=torch.long).item() \
@@ -19,8 +20,27 @@ def sample_mog(B, N, K,
     gathered_params = torch.gather(params, 1,
             labels.unsqueeze(-1).repeat(1, 1, params.shape[-1]))
     X = mvn.sample(gathered_params)
+    
+    if add_false_positives:
+#         print("labels:", labels)
+#         print("labels.shape:", labels.shape)
+#         print("X.shape", X.shape)
+        B = X.shape[0]
+        dim = X.shape[2]
+        false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
+        X = torch.cat([X, false_positives], dim=1)
+        fp_labels =  K * torch.ones((X.shape[0], FP_count), dtype=torch.long).to(device)
+        labels = torch.cat([labels, fp_labels], dim=1)
+#         print("labels:", labels)
+#         print("labels.shape:", labels.shape)
+    
     if onehot:
-        labels = F.one_hot(labels, K)
+        if add_false_positives:
+            # print("labels:", labels)
+            labels = F.one_hot(labels, K+1)
+        else:        
+            labels = F.one_hot(labels, K) 
+            
     dataset = {'X':X, 'labels':labels}
     if return_ll:
         if not onehot:

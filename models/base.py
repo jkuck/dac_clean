@@ -24,7 +24,7 @@ def compute_cluster_loss(ll, logits, labels):
     bcent = F.binary_cross_entropy_with_logits(
             logits.repeat(1, 1, K),
             labels, reduction='none').mean(1)
-    loss = bcent - ll
+    loss = bcent
     loss, idx = loss.min(1)
     bidx = loss != float('inf')
 
