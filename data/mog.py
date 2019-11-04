@@ -59,7 +59,7 @@ def sample_mog(B, N, K,
         else:
 #             print("X.shape:", X.shape)
 #             print("labels.shape:", labels.shape)
-            sleep(temp)
+#             sleep(temp)
             pi = labels.float().sum(1, keepdim=True) / N
             ll = mvn.log_prob(X, params) + (pi+1e-10).log()
         dataset['ll'] = ll.logsumexp(-1).mean().item()

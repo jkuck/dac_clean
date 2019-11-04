@@ -72,6 +72,8 @@ def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects, weigh
 
 
 #     loss = lamb * bcent[:,:-1] + distances #exclude FP class
+#     print("bcent.shape:", bcent.shape)
+#     print("distances.shape:", distances.shape)
     loss = lamb * bcent + distances
     # print("loss:", loss[0])
     
