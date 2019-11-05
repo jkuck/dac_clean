@@ -134,12 +134,12 @@ class ModelTemplate(object):
         labels = batch['labels'].cuda().float()
         params, ll, logits = self.net(X)
 #         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
-        loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
+#         loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
     
-#         gt_objects = batch['gt_objects'].cuda()
-#         pred_cluster = params[:,:,:2]
-#         loss, bcent = compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects) 
-        ll = -1
+        gt_objects = batch['gt_objects'].cuda()
+        pred_cluster = params[:,:,:2]
+        loss, bcent = compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects) 
+        ll = loss
     
         if train:
             return loss
