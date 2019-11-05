@@ -98,14 +98,14 @@ class Model(ModelTemplate):
             print('generating benchmark {}...'.format(self.testfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog_varNumFP(10, self.N, 4,
+                bench.append(sample_mog(10, self.N, 4,
                     rand_N=True, rand_K=True, return_ll=True))
             torch.save(bench, self.testfile)
         if not os.path.isfile(self.clusterfile) or force:
             print('generating benchmark {}...'.format(self.clusterfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog_varNumFP(10, self.N*4, 16,
+                bench.append(sample_mog(10, self.N*4, 16,
 #                 bench.append(sample_mog(10, 600, 12,
                     rand_N=True, rand_K=True, return_ll=True))
  #                bench.append(sample_mog_FP(B=10, N=-1, K=12, sample_K=False, det_per_cluster=4, dim=2,
@@ -116,7 +116,7 @@ class Model(ModelTemplate):
 #         print("kwargs:", kwargs)
 #         sleep(temp)
 #         return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
-        return sample_mog_varNumFP(B, N, K, device=torch.device('cuda'), **kwargs)
+        return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
 
 
     def sample_mog_FP(self, B, N, K, **kwargs):

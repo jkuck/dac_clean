@@ -82,7 +82,7 @@ def sample_mog_varNumFP(B, N, K,
     labels = sample_labels(B, N, K, alpha=alpha, rand_K=rand_K, device=device)
     params = mvn.sample_params([B, K], device=device)
     assert(len(params.shape) == 3)
-    assert(B, K, 4 == params.shape), (B, K, 4, params.shape)
+    assert((B, K, 4) == params.shape), (B, K, 4, params.shape)
     params[:,0,:2] = 0.0 #set FP mu's to 0
     params[:,0,2:] = 3.0 #set FP std's to 3
     
