@@ -35,11 +35,14 @@ def compute_cluster_loss(ll, logits, labels):
 
 def compute_FP_removal_loss(ll, FP_logits, FP_labels):
     #BCE on classifying TP/FP
-    B, K = labels.shape[0], labels.shape[-1]
+    B, K = FP_labels.shape[0], FP_labels.shape[-1]
+    FP_logits = FP_logits.squeeze()
+#     print("FP_logits.shape:", FP_logits.shape)
+#     print("FP_labels.shape:", FP_labels.shape)
     bcent_loss = F.binary_cross_entropy_with_logits(
-            logits, labels, reduction='mean')
+            FP_logits, FP_labels, reduction='mean')
 
-    return bcent_loss, -1, -1
+    return bcent_loss, -1, bcent_loss
 
 def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects, weight=None, lamb=1.0, verbose=False):
     '''
@@ -144,7 +147,8 @@ class ModelTemplate(object):
 #         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
 #         loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
     
-        loss, ll, bcent = compute_FP_removal_loss(ll, logits, labels)
+        FP_labels = batch['FP_labels'].cuda().float()
+        loss, ll, bcent = compute_FP_removal_loss(ll, logits, FP_labels)
     
 #         gt_objects = batch['gt_objects'].cuda()
 #         pred_cluster = params[:,:,:2]
