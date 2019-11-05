@@ -34,8 +34,8 @@ if not hasattr(model, 'cluster'):
 save_dir = os.path.join(results_path, module_name, args.run_name)
 net = model.net.cuda()
 
-# net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
-net.load_state_dict(torch.load(os.path.join(save_dir, 'originalDAC_fullytrained.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'originalDAC_fullytrained.tar')))
 
 # print("args.rand_N:", args.rand_N)
 # print("args.rand_K:", args.rand_K)
@@ -63,7 +63,7 @@ print("rand_K:", rand_K)
 
 batch = model.sample(B, N, K,
             alpha=1.0, onehot=True,
-            rand_N=True, rand_K=True,
+            rand_N=False, rand_K=False,
             add_false_positives=False,
             FP_count=64)
 

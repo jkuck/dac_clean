@@ -8,7 +8,7 @@ import numpy as np
 
 from utils.log import get_logger, Accumulator
 from utils.misc import load_module
-from utils.paths import results_path
+from utils.paths import results_path, benchmarks_path
 from utils.tensor import to_numpy
 
 from data.mog import sample_mog, sample_mog_FP
@@ -30,11 +30,13 @@ module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
 
-REGEN_BENCHMARK = True
+
+REGEN_BENCHMARK = False
 if REGEN_BENCHMARK:
+    temp_testfile = os.path.join(results_path, 'temp_testfile.tar')
     #regenerate clusterfile for current params
-    print('generating benchmark {}...'.format(model.clusterfile))
-    print(B,N,K)    
+    print('generating benchmark {}...'.format(temp_testfile))
+    print("B,N,K:", B,N,K)    
     bench = []
     for _ in range(100):
         # bench.append(sample_mog(10, 3000, 12,
@@ -52,7 +54,7 @@ if REGEN_BENCHMARK:
 
         # bench.append(sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4,
         #  dim=2, onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))
-    torch.save(bench, model.clusterfile)
+    torch.save(bench, temp_testfile)
 
 
 @torch.jit.script
@@ -78,8 +80,12 @@ net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'cluster_loss_withFP.tar')))
 
 net.eval()
-test_loader = model.get_test_loader(filename=model.clusterfile)
-# test_loader = model.get_test_loader(filename=model.testfile)
+if REGEN_BENCHMARK:
+    test_loader = model.get_test_loader(filename=temp_testfile)
+else:
+    # test_loader = model.get_test_loader(filename=model.clusterfile)
+    test_loader = model.get_test_loader(filename=model.testfile)
+
 accm = Accumulator('model ll', 'oracle ll', 'ARI', 'NMI', 'k-MAE')
 num_failure = 0
 logger = get_logger('{}_{}'.format(module_name, args.run_name),

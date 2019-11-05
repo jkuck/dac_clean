@@ -52,7 +52,7 @@ class FindCluster(nn.Module):
         self.isab2 = StackedISAB(dim_hids, dim_hids, num_inds, 4)
         self.fc2 = nn.Linear(dim_hids, 1)
 
-    def forward(self, X, mask=None, predict_from_clustering=False):
+    def forward(self, X, mask=None, predict_from_clustering=True):
         H_enc = self.isab1(X, mask=mask)
         Z = self.pma(H_enc, mask=mask)
         params = self.mvn.transform(self.fc1(Z))
