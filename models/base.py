@@ -133,8 +133,8 @@ class ModelTemplate(object):
         X = batch['X'].cuda()
         labels = batch['labels'].cuda().float()
         params, ll, logits = self.net(X)
-        loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
-#         loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
+#         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
+        loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
     
 #         gt_objects = batch['gt_objects'].cuda()
 #         pred_cluster = params[:,:,:2]
