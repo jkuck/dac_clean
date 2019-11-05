@@ -8,7 +8,7 @@ def sample_mog(B, N, K,
         mvn=None, return_ll=False,
         alpha=1.0, onehot=True,
         rand_N=True, rand_K=True,
-        device='cpu', add_false_positives=False,
+        device='cpu', add_false_positives=True,
         FP_count=64):
 
     mvn = MultivariateNormalDiag(2) if mvn is None else mvn
@@ -27,7 +27,8 @@ def sample_mog(B, N, K,
 #         print("X.shape", X.shape)
         B = X.shape[0]
         dim = X.shape[2]
-        false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
+#         false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
+        false_positives = 3.0 * torch.randn(B, FP_count, dim).to(device)
         X = torch.cat([X, false_positives], dim=1)
         fp_labels =  K * torch.ones((X.shape[0], FP_count), dtype=torch.long).to(device)
         labels = torch.cat([labels, fp_labels], dim=1)
