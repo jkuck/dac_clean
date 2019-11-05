@@ -115,7 +115,9 @@ class Model(ModelTemplate):
     def sample(self, B, N, K, **kwargs):
 #         print("kwargs:", kwargs)
 #         sleep(temp)
-        return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
+#         return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
+        return sample_mog_varNumFP(B, N, K, device=torch.device('cuda'), **kwargs)
+
 
     def sample_mog_FP(self, B, N, K, **kwargs):
         return sample_mog_FP(B, N, K, **kwargs)

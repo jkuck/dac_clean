@@ -33,6 +33,14 @@ def compute_cluster_loss(ll, logits, labels):
     bcent = bcent[bidx, idx[bidx]].mean()
     return loss, ll, bcent
 
+def compute_FP_removal_loss(ll, FP_logits, FP_labels):
+    #BCE on classifying TP/FP
+    B, K = labels.shape[0], labels.shape[-1]
+    bcent_loss = F.binary_cross_entropy_with_logits(
+            logits, labels, reduction='mean')
+
+    return bcent_loss, -1, -1
+
 def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects, weight=None, lamb=1.0, verbose=False):
     '''
     directly regress ground truth object positions using a distance loss
@@ -134,7 +142,9 @@ class ModelTemplate(object):
         labels = batch['labels'].cuda().float()
         params, ll, logits = self.net(X)
 #         loss, ll, bcent = compute_filter_loss(ll, logits, labels, lamb=lamb)
-        loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
+#         loss, ll, bcent = compute_cluster_loss(ll, logits, labels)
+    
+        loss, ll, bcent = compute_FP_removal_loss(ll, logits, labels)
     
 #         gt_objects = batch['gt_objects'].cuda()
 #         pred_cluster = params[:,:,:2]

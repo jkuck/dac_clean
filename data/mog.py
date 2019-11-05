@@ -30,8 +30,10 @@ def sample_mog(B, N, K,
 #         false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
         false_positives = 3.0 * torch.randn(B, FP_count, dim).to(device)
         X = torch.cat([X, false_positives], dim=1)
-        fp_labels =  K * torch.ones((X.shape[0], FP_count), dtype=torch.long).to(device)
-        labels = torch.cat([labels, fp_labels], dim=1)
+        labels_for_FP =  K * torch.ones((X.shape[0], FP_count), dtype=torch.long).to(device)
+        labels = torch.cat([torch.zeros((X.shape[0], N), dtype=torch.long),
+                            torch.ones((X.shape[0], FP_count), dtype=torch.long)], dim=1)
+        FP_labels = torch.cat([labels, labels_for_FP], dim=1)
 #         print("labels:", labels)
 #         print("labels.shape:", labels.shape)
     
@@ -43,7 +45,7 @@ def sample_mog(B, N, K,
             labels = F.one_hot(labels, K) 
             
     gt_objects = params[:, :, :2]
-    dataset = {'X':X, 'labels':labels, "gt_objects":gt_objects}
+    dataset = {'X':X, 'labels':labels, "gt_objects":gt_objects, 'FP_labels': FP_labels}
     if return_ll:
         if not onehot:
             labels = F.one_hot(labels, K)
@@ -66,6 +68,51 @@ def sample_mog(B, N, K,
         dataset['ll'] = ll.logsumexp(-1).mean().item()
     return dataset
 
+
+
+def sample_mog_varNumFP(B, N, K,
+        mvn=None, return_ll=False,
+        alpha=1.0, onehot=True,
+        rand_N=True, rand_K=True,
+        device='cpu', FP_count=64):
+
+    mvn = MultivariateNormalDiag(2) if mvn is None else mvn
+    N = torch.randint(int(0.3*N), N, [1], dtype=torch.long).item() \
+            if rand_N else N
+    labels = sample_labels(B, N, K, alpha=alpha, rand_K=rand_K, device=device)
+    params = mvn.sample_params([B, K], device=device)
+    assert(len(params.shape) == 3)
+    assert(B, K, 4 == params.shape), (B, K, 4, params.shape)
+    params[:,0,:2] = 0.0 #set FP mu's to 0
+    params[:,0,2:] = 3.0 #set FP std's to 3
+    
+#     params = mvn.sample_params_jdk([B, K], device=device)
+    gathered_params = torch.gather(params, 1,
+            labels.unsqueeze(-1).repeat(1, 1, params.shape[-1]))
+    X = mvn.sample(gathered_params)
+    
+    assert(B == X.shape[0])
+    dim = X.shape[2]
+#         false_positives = -4 + 8*torch.rand(B, FP_count, dim).to(device)
+
+    FP_labels = torch.zeros_like(labels).to(device)
+    FP_labels[torch.where(labels == 0)] = 1.0
+
+    
+    if onehot:
+          labels = F.one_hot(labels, K+1)
+
+    gt_objects = params[:, :, :2]
+    dataset = {'X':X, 'labels':labels, "gt_objects":gt_objects, 'FP_labels': FP_labels}
+    if return_ll:
+        if not onehot:
+            labels = F.one_hot(labels, K)
+        # recover pi from labels
+        pi = labels[:, :-FP_count, :-1].float().sum(1, keepdim=True) / N
+        ll = mvn.log_prob(X[:, :-FP_count, :], params) + (pi+1e-10).log()
+
+        dataset['ll'] = ll.logsumexp(-1).mean().item()
+    return dataset
 
 def sample_mog_FP(B, N, K, sample_K=False, det_per_cluster=50, dim=2, onehot=True,
  add_false_positives=False, FP_count=64, meas_std=.1):
