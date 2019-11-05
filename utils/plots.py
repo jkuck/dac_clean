@@ -42,8 +42,11 @@ def draw_ellipse(pos, cov, ax=None, **kwargs):
         ax.add_patch(Ellipse(pos, nsig*width, nsig*height, angle,
             alpha=0.5/nsig, **kwargs))
 
-def scatter_mog(X, labels, mu, cov, ax=None):
+def scatter_mog(X, labels, mu, cov, ax=None, FP_included=False):
     ax = ax or plt.gca()
     ulabels, colors = scatter(X, labels=labels, ax=ax, zorder=10)
+    if FP_included:
+        ulabels = ulabels[:-1]
+    print("ulabels:", ulabels)
     for i, l in enumerate(ulabels):
         draw_ellipse(mu[l], cov[l], ax=ax, fc=colors[i])

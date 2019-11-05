@@ -160,7 +160,7 @@ class ModelTemplate(object):
         else:
             return ll, bcent
 
-    def cluster(self, X, max_iter=50, verbose=True, check=False):
+    def cluster(self, X, max_iter=50, verbose=True, check=False, mask=None):
         B, N = X.shape[0], X.shape[1]
         self.net.eval()
 
@@ -169,8 +169,16 @@ class ModelTemplate(object):
             params = [params]
 
             labels = torch.zeros_like(logits).squeeze(-1).int()
-            mask = (logits > 0.0)
-            done = mask.sum((1,2)) == N
+            if mask is None:
+                mask = (logits > 0.0)
+                done = mask.sum((1,2)) == N
+            else:
+                ind = logits > 0.0
+                labels[mask.squeeze(-1)] = max_iter+1
+                # labels[(ind*mask.bitwise_not()).squeeze(-1)] = -1
+                mask[ind] = True                
+                done = mask.sum((1,2)) == N
+
             for i in range(1, max_iter):
                 params_, ll_, logits = self.net(X, mask=mask)
 
@@ -190,11 +198,14 @@ class ModelTemplate(object):
 
             fail = done.sum() < B
 
-            # ML estimate of mixing proportion pi
-            pi = F.one_hot(labels.long(), len(params)).float()
-            pi = pi.sum(1, keepdim=True) / pi.shape[1]
-            ll = ll + (pi + 1e-10).log()
-            ll = ll.logsumexp(-1).mean()
+            if mask is None:
+                # ML estimate of mixing proportion pi
+                pi = F.one_hot(labels.long(), len(params)).float()
+                pi = pi.sum(1, keepdim=True) / pi.shape[1]
+                ll = ll + (pi + 1e-10).log()
+                ll = ll.logsumexp(-1).mean()
+            else:
+                ll = torch.tensor(-1)
 
             if check:
                 return params, labels, ll, fail

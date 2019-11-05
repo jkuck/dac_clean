@@ -29,9 +29,23 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
+print("args:", args)
+FP_removal_model = 'models/mog.p'
+if FP_removal_model is not None:
+    # fp_run_name = 'fp_removal_network'
+    # fp_run_name = 'const_num_fp_removal_network'
+    fp_run_name = 'const_num_fp_removal_network_K16'
+    run_name = getattr(args, 'run_name')
+    setattr(args, 'run_name', fp_run_name)
+    # print("args:", args)
 
+    fp_removal_module, fp_removal_module_name = load_module(args.modelfile)
+    fp_removal_model = fp_removal_module.load(args)
+    setattr(args, 'run_name', run_name)
+    # setattr(args, 'run_name', run_name + '_WITH_fp_removal_network')
 
-REGEN_BENCHMARK = False
+REGEN_BENCHMARK = True
+K=16
 if REGEN_BENCHMARK:
     temp_testfile = os.path.join(results_path, 'temp_testfile.tar')
     #regenerate clusterfile for current params
@@ -49,11 +63,11 @@ if REGEN_BENCHMARK:
         bench.append(sample_mog(B, N, K,
             alpha=1.0, onehot=True,
             rand_N=False, rand_K=False,
-            add_false_positives=False,
+            add_false_positives=True,
             FP_count=64))
 
-        # bench.append(sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4,
-        #  dim=2, onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))
+        # bench.append(sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=50,
+        #  dim=2, onehot=True, add_false_positives=True, FP_count=64, meas_std=.1))
     torch.save(bench, temp_testfile)
 
 
@@ -80,6 +94,15 @@ net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'cluster_loss_withFP.tar')))
 
 net.eval()
+
+if FP_removal_model is not None:
+    fp_removal_net = fp_removal_model.net.cuda()
+    fp_removal_dir = os.path.join(results_path, module_name, fp_run_name)
+    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model.tar')))
+
+    fp_removal_net.eval()
+
+
 if REGEN_BENCHMARK:
     test_loader = model.get_test_loader(filename=temp_testfile)
 else:
@@ -93,8 +116,15 @@ logger = get_logger('{}_{}'.format(module_name, args.run_name),
 all_correct_counts = []
 all_distances = []
 for batch in tqdm(test_loader):
+    if FP_removal_model is not None:
+        params_, ll_, logits = fp_removal_net(batch['X'].cuda())
+        mask = (logits > 0.0)
+
+    else:
+        mask = None
+
     params, labels, ll, fail = model.cluster(batch['X'].cuda(),
-            max_iter=args.max_iter, verbose=False, check=True)
+            max_iter=args.max_iter, verbose=False, check=True, mask=mask)
     true_labels = to_numpy(batch['labels'].argmax(-1))
     ari = 0
     nmi = 0

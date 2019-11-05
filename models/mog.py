@@ -115,23 +115,23 @@ class Model(ModelTemplate):
     def sample(self, B, N, K, **kwargs):
 #         print("kwargs:", kwargs)
 #         sleep(temp)
-#         return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
-        return sample_mog_varNumFP(B, N, K, device=torch.device('cuda'), **kwargs)
+        return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
+        # return sample_mog_varNumFP(B, N, K, device=torch.device('cuda'), **kwargs)
 
 
     def sample_mog_FP(self, B, N, K, **kwargs):
         return sample_mog_FP(B, N, K, **kwargs)
 
 
-    def plot_clustering(self, X, params, labels):
+    def plot_clustering(self, X, params, labels, FP_included=False):
         B = X.shape[0]
         mu, cov = self.net.mvn.stats(torch.cat(params, 1))
         if B == 1:
-            scatter_mog(X[0], labels[0], mu[0], cov[0])
+            scatter_mog(X[0], labels[0], mu[0], cov[0], FP_included=FP_included)
         else:
             fig, axes = plt.subplots(2, B//2, figsize=(2.5*B, 10))
             for b, ax in enumerate(axes.flatten()):
-                scatter_mog(X[b], labels[b], mu[b], cov[b], ax=ax)
+                scatter_mog(X[b], labels[b], mu[b], cov[b], ax=ax, FP_included=FP_included)
 
     def plot_step(self, X):
         B = X.shape[0]
