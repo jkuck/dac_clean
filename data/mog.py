@@ -31,12 +31,14 @@ def sample_mog(B, N, K,
         false_positives = 3.0 * torch.randn(B, FP_count, dim).to(device)
         X = torch.cat([X, false_positives], dim=1)
         labels_for_FP =  K * torch.ones((X.shape[0], FP_count), dtype=torch.long).to(device)
-        labels = torch.cat([torch.zeros((X.shape[0], N), dtype=torch.long),
-                            torch.ones((X.shape[0], FP_count), dtype=torch.long)], dim=1)
-        FP_labels = torch.cat([labels, labels_for_FP], dim=1)
+        labels = torch.cat([labels, labels_for_FP], dim=1)
+
+        FP_labels = torch.cat([torch.zeros((X.shape[0], N), dtype=torch.long),
+                            torch.ones((X.shape[0], FP_count), dtype=torch.long)], dim=1).to(device)
 #         print("labels:", labels)
 #         print("labels.shape:", labels.shape)
     
+
     if onehot:
         if add_false_positives:
             # print("labels:", labels)
