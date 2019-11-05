@@ -84,11 +84,13 @@ class FindCluster(nn.Module):
 class Model(ModelTemplate):
     def __init__(self, args):
         super().__init__(args)
+        if not os.path.isdir(save_dir):
+            os.makedirs(save_dir)          
         self.testfile = os.path.join(save_dir,
                 'mog_10_1000_4.tar' if self.testfile is None else self.testfile)
         self.clusterfile = os.path.join(save_dir,
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
-                'mog_10_100_12.tar' if self.clusterfile is None else self.clusterfile)
+                'mog_10_100_16.tar' if self.clusterfile is None else self.clusterfile)
         self.net = FindCluster(MultivariateNormalDiag(2))
 
     def gen_benchmarks(self, force=False):
@@ -96,14 +98,14 @@ class Model(ModelTemplate):
             print('generating benchmark {}...'.format(self.testfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog(10, N, 4,
+                bench.append(sample_mog(10, self.N, 4,
                     rand_N=True, rand_K=True, return_ll=True))
             torch.save(bench, self.testfile)
         if not os.path.isfile(self.clusterfile) or force:
             print('generating benchmark {}...'.format(self.clusterfile))
             bench = []
             for _ in range(100):
-                bench.append(sample_mog(10, N*4, 16,
+                bench.append(sample_mog(10, self.N*4, 16,
 #                 bench.append(sample_mog(10, 600, 12,
                     rand_N=True, rand_K=True, return_ll=True))
  #                bench.append(sample_mog_FP(B=10, N=-1, K=12, sample_K=False, det_per_cluster=4, dim=2,
@@ -111,6 +113,8 @@ class Model(ModelTemplate):
             torch.save(bench, self.clusterfile)
 
     def sample(self, B, N, K, **kwargs):
+#         print("kwargs:", kwargs)
+#         sleep(temp)
         return sample_mog(B, N, K, device=torch.device('cuda'), **kwargs)
 
     def sample_mog_FP(self, B, N, K, **kwargs):
