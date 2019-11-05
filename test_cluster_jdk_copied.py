@@ -19,7 +19,7 @@ from pymatgen.optimization import linear_assignment
 parser = argparse.ArgumentParser()
 parser.add_argument('--modelfile', type=str, default='models/mog.py')
 parser.add_argument('--run_name', type=str, default='trial')
-parser.add_argument('--max_iter', type=int, default=16)
+parser.add_argument('--max_iter', type=int, default=50)
 parser.add_argument('--filename', type=str, default='test_cluster.log')
 parser.add_argument('--gpu', type=str, default='0')
 args, _ = parser.parse_known_args()
@@ -30,18 +30,29 @@ module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
 
-#regenerate clusterfile for current params
-print('generating benchmark {}...'.format(model.clusterfile))
-bench = []
-for _ in range(100):
-    # bench.append(sample_mog(10, 3000, 12,
+REGEN_BENCHMARK = True
+if REGEN_BENCHMARK:
+    #regenerate clusterfile for current params
+    print('generating benchmark {}...'.format(model.clusterfile))
+    print(B,N,K)    
+    bench = []
+    for _ in range(100):
+        # bench.append(sample_mog(10, 3000, 12,
 
-    # bench.append(sample_mog(B, N, K,
-    #     rand_N=rand_N, rand_K=rand_K, return_ll=True))
+        # bench.append(sample_mog(B, N, K,
+        #     rand_N=rand_N, rand_K=rand_K, return_ll=True))
 
-    bench.append(sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4,
-     dim=2, onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))
-torch.save(bench, model.clusterfile)
+        # print(B,N,K)
+        # sleep(sdf)
+        bench.append(sample_mog(B, N, K,
+            alpha=1.0, onehot=True,
+            rand_N=False, rand_K=False,
+            add_false_positives=False,
+            FP_count=64))
+
+        # bench.append(sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4,
+        #  dim=2, onehot=True, add_false_positives=False, FP_count=64, meas_std=.1))
+    torch.save(bench, model.clusterfile)
 
 
 @torch.jit.script
@@ -60,10 +71,15 @@ if not hasattr(model, 'cluster'):
 save_dir = os.path.join(results_path, module_name, args.run_name)
 net = model.net.cuda()
 
-# net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
-net.load_state_dict(torch.load(os.path.join(save_dir, 'originalDAC_fullytrained.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'originalDAC_fullytrained.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'distance_loss_withFP.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'distance_loss_noFP_probably.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'cluster_loss_withFP.tar')))
+
 net.eval()
 test_loader = model.get_test_loader(filename=model.clusterfile)
+# test_loader = model.get_test_loader(filename=model.testfile)
 accm = Accumulator('model ll', 'oracle ll', 'ARI', 'NMI', 'k-MAE')
 num_failure = 0
 logger = get_logger('{}_{}'.format(module_name, args.run_name),

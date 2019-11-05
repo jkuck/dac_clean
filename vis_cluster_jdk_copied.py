@@ -58,8 +58,14 @@ print("rand_K:", rand_K)
 #  onehot=True, add_false_positives=False, FP_count=64, meas_std=.1)
 
 
-batch = model.sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4, dim=2,
- onehot=True, add_false_positives=False, FP_count=64, meas_std=.1)
+# batch = model.sample_mog_FP(B=10, N=-1, K=16, sample_K=False, det_per_cluster=4, dim=2,
+#  onehot=True, add_false_positives=False, FP_count=64, meas_std=.1)
+
+batch = model.sample(B, N, K,
+            alpha=1.0, onehot=True,
+            rand_N=True, rand_K=True,
+            add_false_positives=False,
+            FP_count=64)
 
 X = batch['X']
 
