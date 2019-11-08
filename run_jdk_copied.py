@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 import os
 import time
 import argparse
@@ -9,6 +10,7 @@ import json
 from utils.log import get_logger, Accumulator
 from utils.misc import load_module
 from utils.paths import results_path, benchmarks_path
+from data.bounding_boxes import BoundingBoxDataset, pad_collate
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--modelfile', type=str, default='models/mog.py')
@@ -17,7 +19,7 @@ parser.add_argument('--mode', type=str, default='train', choices=['train', 'test
 parser.add_argument('--gpu', type=str, default='0')
 parser.add_argument('--run_name', type=str, default='trial')
 parser.add_argument('--test_freq', type=int, default=200)
-parser.add_argument('--save_freq', type=int, default=1000)
+parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--clip', type=float, default=10.0)
 parser.add_argument('--save_all', action='store_true')
 parser.add_argument('--regen_benchmarks', action='store_true')
@@ -29,6 +31,7 @@ if args.seed is not None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
+MODE = 'clustering'
 module, module_name = load_module(args.modelfile)
 model = module.load(args)
 exp_id = '{}_{}'.format(module_name, args.run_name)
@@ -39,8 +42,21 @@ if not os.path.isdir(benchmarks_path):
     os.makedirs(benchmarks_path)
 model.gen_benchmarks(force=args.regen_benchmarks)
 
-train_loader = model.get_train_loader()
-test_loader = model.get_test_loader()
+# train_loader = model.get_train_loader()
+# test_loader = model.get_test_loader()
+
+
+# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100.json',\
+train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
+# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_allTrain.json',\
+                                         num_classes=80, mode=MODE)
+test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100.json',\
+# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
+                                         num_classes=80, mode=MODE)
+train_loader = DataLoader(train_dataset, batch_size=32,
+                        shuffle=True, num_workers=1, collate_fn=pad_collate)
+test_loader = DataLoader(test_dataset, batch_size=32,
+                        shuffle=True, num_workers=1, collate_fn=pad_collate)
 
 def train():
     if not os.path.isdir(save_dir):
@@ -59,19 +75,26 @@ def train():
     train_accm = Accumulator('loss')
 
     tick = time.time()
-    for t, batch in enumerate(train_loader, 1):
-        net.train()
-        optimizer.zero_grad()
-        loss = model.loss_fn(batch)
-        loss.backward()
-        nn.utils.clip_grad_norm_(net.parameters(), args.clip)
-        optimizer.step()
-        scheduler.step()
-        train_accm.update(loss.item())
 
+    for epoch in range(model.num_steps):
+        for t, batch in enumerate(train_loader, 1):
+            # print()
+            # print()
+            # print()
+            # print('-'*80)
+            # print('-'*80)
+            net.train()
+            optimizer.zero_grad()
+            loss = model.loss_fn(batch, mode=MODE)
+            loss.backward()
+            nn.utils.clip_grad_norm_(net.parameters(), args.clip)
+            optimizer.step()
+            train_accm.update(loss.item())
+
+        scheduler.step()
         if t % args.test_freq == 0:
             line = 'step {}, lr {:.3e}, train loss {:.4f}, '.format(
-                    t, optimizer.param_groups[0]['lr'], train_accm.get('loss'))
+                    epoch, optimizer.param_groups[0]['lr'], train_accm.get('loss'))
             line += test(accm=accm, verbose=False)
             logger.info(line)
             accm.reset()
@@ -90,7 +113,7 @@ def test(accm=None, verbose=True):
     accm = Accumulator(*model.metrics) if accm is None else accm
     with torch.no_grad():
         for i, batch in enumerate(test_loader):
-            accm.update(model.loss_fn(batch, train=False))
+            accm.update(model.loss_fn(batch, mode=MODE, train=False))
 
     line = accm.info(header='test')
     if verbose:

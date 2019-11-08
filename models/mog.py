@@ -24,7 +24,8 @@ parser.add_argument('--B', type=int, default=100)
 parser.add_argument('--N', type=int, default=1000)
 parser.add_argument('--K', type=int, default=4)
 parser.add_argument('--lr', type=float, default=5e-4)
-parser.add_argument('--num_steps', type=int, default=20000)
+# parser.add_argument('--num_steps', type=int, default=20000)
+parser.add_argument('--num_steps', type=int, default=100)
 parser.add_argument('--testfile', type=str, default=None)
 parser.add_argument('--clusterfile', type=str, default=None)
 
@@ -40,28 +41,29 @@ sub_args, _ = parser.parse_known_args()
 save_dir = os.path.join(results_path, 'mog', sub_args.run_name)
 
 class FindCluster(nn.Module):
-    def __init__(self, mvn, dim_hids=128, num_inds=32):
+    def __init__(self, input_dim=5, output_dim=4, dim_hids=128, num_inds=32):
         super().__init__()
-        self.mvn = mvn
+        self.input_dim = input_dim
+        self.output_dim = output_dim
 
-        self.isab1 = StackedISAB(mvn.dim, dim_hids, num_inds, 4)
+        self.isab1 = StackedISAB(input_dim, dim_hids, num_inds, 4)
         self.pma = PMA(dim_hids, dim_hids, 1)
-        self.fc1 = nn.Linear(dim_hids, mvn.dim_params)
+        self.fc1 = nn.Linear(dim_hids, output_dim)
 
         self.mab = MAB(dim_hids, dim_hids, dim_hids)
         self.isab2 = StackedISAB(dim_hids, dim_hids, num_inds, 4)
         self.fc2 = nn.Linear(dim_hids, 1)
 
-    def forward(self, X, mask=None, predict_from_clustering=True):
+    def forward(self, X, mask=None, predict_from_clustering=False):
         H_enc = self.isab1(X, mask=mask)
         Z = self.pma(H_enc, mask=mask)
-        params = self.mvn.transform(self.fc1(Z))
-        ll = self.mvn.log_prob(X, params)
+        pred_bbox = self.fc1(Z)
 
         H_dec = self.mab(H_enc, Z)
         logits = self.fc2(self.isab2(H_dec, mask=mask))
 
         if predict_from_clustering:
+            assert(False), "implement variance voting here!!"
             # print("params.shape:", params.shape)
             # sleep(temps)
             logit_threshold = 0
@@ -79,7 +81,7 @@ class FindCluster(nn.Module):
                     # print("torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape:", torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape)
                     params[b_idx,0,:2] = torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0)
 
-        return params, ll, logits
+        return pred_bbox, logits
 
 class Model(ModelTemplate):
     def __init__(self, args):
@@ -91,7 +93,8 @@ class Model(ModelTemplate):
         self.clusterfile = os.path.join(save_dir,
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
                 'mog_10_100_16.tar' if self.clusterfile is None else self.clusterfile)
-        self.net = FindCluster(MultivariateNormalDiag(2))
+        # self.net = FindCluster(MultivariateNormalDiag(2))
+        self.net = FindCluster(input_dim=5, output_dim=4)
 
     def gen_benchmarks(self, force=False):
         if not os.path.isfile(self.testfile) or force:

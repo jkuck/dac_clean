@@ -28,6 +28,8 @@ class MAB(nn.Module):
         if mask is not None:
             mask = mask.squeeze(-1).unsqueeze(1)
             mask = mask.repeat(self.num_heads, Q.shape[1], 1)
+            # print("mask.shape:", mask.shape)
+            # print("A_logits.shape:", A_logits.shape)
             A_logits.masked_fill_(mask, -100.0)
         A = torch.softmax(A_logits, -1)
 
@@ -64,6 +66,10 @@ class PMA(nn.Module):
         self.mab = MAB(dim, dim_X, dim, **kwargs)
 
     def forward(self, X, mask=None):
+        # print()
+        # print("---------FROM PMA-------------")
+        # print("mask.shape:", mask.shape)
+        # print("X.shape:", X.shape)
         return self.mab(self.I.repeat(X.shape[0], 1, 1), X, mask=mask)
 
 class ISAB(nn.Module):
