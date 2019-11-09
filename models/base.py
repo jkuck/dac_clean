@@ -210,8 +210,8 @@ class ModelTemplate(object):
         self.net.eval()
 
         with torch.no_grad():
-            params, ll, logits = self.net(X)
-            params = [params]
+            pred_bbox, logits = self.net(X)
+            bboxes = [pred_bbox]
 
             labels = torch.zeros_like(logits).squeeze(-1).int()
             if mask is None:
@@ -225,10 +225,9 @@ class ModelTemplate(object):
                 done = mask.sum((1,2)) == N
 
             for i in range(1, max_iter):
-                params_, ll_, logits = self.net(X, mask=mask)
+                pred_bbox, logits = self.net(X, mask=mask)
 
-                ll = torch.cat([ll, ll_], -1)
-                params.append(params_)
+                bboxes.append(pred_bbox)
 
                 ind = logits > 0.0
                 labels[(ind*mask.bitwise_not()).squeeze(-1)] = i
@@ -243,19 +242,12 @@ class ModelTemplate(object):
 
             fail = done.sum() < B
 
-            if mask is None:
-                # ML estimate of mixing proportion pi
-                pi = F.one_hot(labels.long(), len(params)).float()
-                pi = pi.sum(1, keepdim=True) / pi.shape[1]
-                ll = ll + (pi + 1e-10).log()
-                ll = ll.logsumexp(-1).mean()
-            else:
-                ll = torch.tensor(-1)
+
 
             if check:
-                return params, labels, ll, fail
+                return bboxes, labels, fail
             else:
-                return params, labels, ll
+                return bboxes, labels,
 
     def plot_clustering(self, X, params, labels):
         raise NotImplementedError
