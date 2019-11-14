@@ -277,7 +277,7 @@ class ModelTemplate(object):
         B, N = X.shape[0], X.shape[1]
         self.net.eval()
 
-        mode = 'twostage'
+        mode = 'onestage'
         assert(mode in ['onestage', 'twostage']), (mode)
 
         fp_cutoff_score = 0

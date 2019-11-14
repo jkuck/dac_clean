@@ -35,12 +35,14 @@ NUM_IMAGES = 100
 # DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GaussianCRPS_IOUp5.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
-DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
+
+# DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
+DATA_NAME ='start0_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
 
 # DATA_NAME ='start0_tiny%d_GaussianCRPS_IOUp9.json' % NUM_IMAGES
 
-COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
-# COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
+# COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
+COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 
 DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_%s' % DATA_NAME
 # DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json'
@@ -62,11 +64,11 @@ module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
 print("args:", args)
-# args.run_name = 'bbox_clustering'
-args.run_name = 'bbox_twostage'
+args.run_name = 'bbox_clustering'
+# args.run_name = 'bbox_twostage'
 # args.run_name = 'trial'
-# FP_removal_model = 'models/mog.p'
-FP_removal_model = None
+FP_removal_model = 'models/mog.p'
+# FP_removal_model = None
 if FP_removal_model is not None:
     # fp_run_name = 'fp_removal_network'
     # fp_run_name = 'const_num_fp_removal_network'
@@ -97,9 +99,16 @@ net = model.net.cuda()
 
 
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
-net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_400epoch.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_400epoch.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_2ktrain.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_1ktrain_classInput.tar')))
+#reproduce
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_2kepoch.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_200epoch.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny100_GausML_IOUp5_minScoreP2_2kepoch.tar')))
+
+
+
 
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP_2ktrain.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP.tar')))
@@ -122,8 +131,12 @@ if FP_removal_model is not None:
     fp_removal_dir = os.path.join(results_path, module_name, fp_run_name)
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train10k.tar')))
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar'))) #semi decent results, best so far
-    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar'))) 
-    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_GausML_IOUp5_minScoreP2_200train.tar'))) 
+    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar')))
+
+    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_GausML_IOUp5_minScoreP2_200train.tar'))) 
+    #reproduce
+    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_200epoch.tar'))) 
+
 
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_shortTraining.tar')))
 

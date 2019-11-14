@@ -250,10 +250,12 @@ class BoundingBoxDataset(Dataset):
             # X[:, 8] = torch.exp(X[:, 8])
             # print('transform std xywh X:', X)
             # print("X.shape:", X.shape)
+
             X = torch.cat([X, torch.zeros((X.shape[0], 80), device=X.device)], dim=1)
             X[:, 9+int(cur_cls_idx)] = 1
 
         else:
+            # X = torch.zeros((0,9), device=X.device)
             X = torch.zeros((0,89), device=X.device)
 
         # print('X.shape:', X.shape)
@@ -269,7 +271,7 @@ class BoundingBoxDataset(Dataset):
         # # print("X.shape:", X.shape)
         # # sleep(xshape)
 
-        remove_all_FP = False
+        remove_all_FP = True
         if remove_all_FP:
             #remove FP detections and labels
             X = X[torch.where(labels != -1)]

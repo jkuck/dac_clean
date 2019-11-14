@@ -31,8 +31,8 @@ if args.seed is not None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-MODE = 'FP_removal'
-# MODE = 'clustering'
+# MODE = 'FP_removal'
+MODE = 'clustering'
 MODE1 = MODE
 
 # MODE1 = 'FP_removal_then_cluster'
@@ -63,7 +63,7 @@ model.gen_benchmarks(force=args.regen_benchmarks)
 # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_allTrain.json',\
 # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
 # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GausML_IOUp5_minScoreP2.json',\
+train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny100_GausML_IOUp5_minScoreP2.json',\
                                          num_classes=80, mode=MODE)
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
