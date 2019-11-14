@@ -34,7 +34,8 @@ def compute_cluster_loss(ll, logits, labels):
     bcent = bcent[bidx, idx[bidx]].mean()
     return loss, ll, bcent
 
-def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=.2):
+# def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=.2):
+def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=1.57):
     #BCE on classifying TP/FP
     B, K = FP_labels.shape[0], FP_labels.shape[-1]
     FP_logits = FP_logits.squeeze()
@@ -60,7 +61,7 @@ def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=.2):
     return bcent_loss, bcent_loss
 
 def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects,\
-                                 gt_count_per_img, det_mask, weight=None, lamb=1.0, verbose=False):
+                                 gt_count_per_img, det_mask, weight=5, lamb=.01, verbose=False):
     '''
     directly regress ground truth object positions using a distance loss
     instead of log likelihood
@@ -110,7 +111,11 @@ def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects,\
     batch_size1, gt_obj_count, dim1 = gt_objects.shape
     assert(batch_size1 == B)
     assert(dim == dim1)
-    distances = torch.cdist(gt_objects.contiguous(), pred_cluster.contiguous())
+    # print("pred_cluster.shape:", pred_cluster.shape)
+    # print("gt_objects.shape:", gt_objects.shape)
+    distances_l2 = torch.cdist(gt_objects.contiguous(), pred_cluster.contiguous(), p=2)
+    distances_l1 = torch.cdist(gt_objects.contiguous(), pred_cluster.contiguous(), p=1)
+    distances = torch.min(distances_l1, distances_l2) #smooth l1
     distances = distances.squeeze(dim=2)
 
     assert((batch_size, gt_obj_count) == distances.shape), (batch_size, gt_obj_count, distances.shape)
@@ -123,7 +128,12 @@ def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects,\
         print(repeated_gt_count_per_img.device)
     bcent[torch.where(indices >= repeated_gt_count_per_img)] = np.inf
 
-    loss = lamb * bcent + distances
+
+    # print("bcent.shape:", bcent.shape)
+    # print("distances.shape:", distances.shape)
+    # loss = lamb * bcent + distances
+    #match shapes, bcent may or may not have FP category
+    loss = lamb * bcent[:, :distances.shape[1]] + distances
     
 
     if verbose:
@@ -143,6 +153,45 @@ def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects,\
         print("post mean bcent.shape:", bcent.shape)
     # sleep(checklabelshape)
     return loss, bcent
+
+
+nll_loss = torch.nn.NLLLoss(weight=torch.tensor([16.,16./3.,1.]).cuda(), reduction='none')
+def compute_filter_loss_cluster_multiclass(logits, labels, verbose=False):
+    '''
+    only compute binary cross entropy loss on clustering
+            expects logits to have 3 class probabilities: 0 (TP and part of the identified cluster), 1 (TP, but not part
+            of the identified cluster), 2 (FP)
+
+    '''
+    # print(labels.shape)
+    # print(logits.shape)
+    B, N, K = labels.shape
+
+#     print("logits:", logits[0])
+#     print("probs:", torch.exp(logits[0]))
+
+    logits = logits.permute(0,2,1).unsqueeze(dim=3).repeat(1,1,1,K)
+    # print(logits.shape)
+
+    loss_each_cluster = nll_loss(logits, labels)
+#     print("loss_each_cluster:", loss_each_cluster[0])
+#     print("loss_each_cluster.shape:", loss_each_cluster.shape)
+    loss_each_img = torch.mean(loss_each_cluster, dim=1)
+#     print("loss_each_img.shape:", loss_each_img.shape)
+    
+    loss_best_cluster = torch.min(loss_each_img, dim=1)[0]
+
+#     print("loss_best_cluster:", loss_best_cluster[0])        
+#     print("loss_best_cluster.shape:", loss_best_cluster.shape)
+    # sleep(shapecheck)
+    loss = torch.mean(loss_best_cluster)
+#     print("labels:", labels[0])
+#     print("logits.shape", logits.shape)
+#     print("final loss:", loss)
+#     sleep(labels)
+    return loss, loss
+
+
 
 class ModelTemplate(object):
     def __init__(self, args):
@@ -181,6 +230,7 @@ class ModelTemplate(object):
         X = batch['X'].cuda()
         labels = batch['labels'].cuda().float()
         det_mask = batch['det_mask'].cuda()#.float()
+        # print("1 X.shape=", X.shape)
         pred_bbox, logits = self.net(X, mask=det_mask)
         gt_mask = batch['gt_mask'].cuda()
         # print()
@@ -205,12 +255,19 @@ class ModelTemplate(object):
         else:
             return loss, bcent
 
-    def cluster(self, X, max_iter=50, verbose=True, check=False, mask=None):
+    def cluster(self, X, max_iter=50, verbose=True, check=False, mask=None, max_iter_tensor=None):
+        '''
+        max_iter_tensor: tensor specifying max iteration for every instance in batch, for debugging/upper bounding performance
+        '''
         B, N = X.shape[0], X.shape[1]
         self.net.eval()
 
         with torch.no_grad():
+            score=.99
+        
             pred_bbox, logits = self.net(X)
+            pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
+            pred_bbox[:,:,4] = score
             bboxes = [pred_bbox]
 
             labels = torch.zeros_like(logits).squeeze(-1).int()
@@ -225,8 +282,22 @@ class ModelTemplate(object):
                 done = mask.sum((1,2)) == N
 
             for i in range(1, max_iter):
-                pred_bbox, logits = self.net(X, mask=mask)
+                if max_iter_tensor is not None:
+                    # print("max_iter_tensor.shape:", max_iter_tensor.shape)
+                    # print("mask.shape:", mask.shape)
+                    # print("labels.shape:", labels.shape)
+                    # sleep(wpxne)
+                    for b_idx in range(max_iter_tensor.shape[0]):
+                        if i > max_iter_tensor[b_idx]:
+                            mask[b_idx][torch.where(labels[b_idx] == 0)] = 1
+                            assert((mask[b_idx] == 1).all())
+                            labels[b_idx][torch.where(labels[b_idx] == 0)] = max_iter + 1
 
+                pred_bbox, logits = self.net(X, mask=mask)
+                print("pred_bbox.shape:", pred_bbox.shape)
+                pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
+                score -= .01
+                pred_bbox[:,:,4] = score
                 bboxes.append(pred_bbox)
 
                 ind = logits > 0.0
