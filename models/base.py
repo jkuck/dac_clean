@@ -231,7 +231,8 @@ class ModelTemplate(object):
         labels = batch['labels'].cuda().float()
         det_mask = batch['det_mask'].cuda()#.float()
         # print("1 X.shape=", X.shape)
-        pred_bbox, logits = self.net(X, mask=det_mask)
+        if mode != 'FP_removal_then_cluster':
+            pred_bbox, logits = self.net(X, mask=det_mask)
         gt_mask = batch['gt_mask'].cuda()
         # print()
         # print("labels.shape:", labels.shape)
@@ -247,13 +248,27 @@ class ModelTemplate(object):
             onehot_labels = batch['onehot_labels'].cuda().float()
             gt_count_per_img = batch['gt_count_per_img'].cuda()#.float()
             loss, bcent = compute_filter_loss_distance(logits, onehot_labels, pred_bbox, gt_objects, gt_count_per_img, det_mask) 
-    
+        elif mode == 'FP_removal_then_cluster':
+            FP_labels = batch['FP_labels'].cuda().float()
+            gt_objects = batch['gt_objects'].cuda()
+            onehot_labels = batch['onehot_labels'].cuda().float()
+            gt_count_per_img = batch['gt_count_per_img'].cuda()#.float()
+            pred_bbox, cluster_logits, FP_logits, new_FP_mask = self.net(X, mask=det_mask)
+            
+            FP_loss, FP_bcent = compute_FP_removal_loss(FP_logits, FP_labels, det_mask)
+            cluster_loss, cluster_bcent = compute_filter_loss_distance(cluster_logits, onehot_labels, pred_bbox, gt_objects, gt_count_per_img, det_mask)
+            loss = 20*FP_loss + cluster_loss
+            # loss = cluster_loss
         else:
             assert(False), mode
         if train:
             return loss
         else:
-            return loss, bcent
+            if mode == 'FP_removal_then_cluster':
+                return loss, FP_loss, FP_bcent, cluster_loss, cluster_bcent
+                # return loss, cluster_loss
+            else:
+                return loss, bcent
 
     def cluster(self, X, max_iter=50, verbose=True, check=False, mask=None, max_iter_tensor=None):
         '''

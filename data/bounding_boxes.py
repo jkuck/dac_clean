@@ -389,7 +389,7 @@ class BoundingBoxDataset(Dataset):
             for gt_idx in gt_obj_indices_to_keep:
                 det_indices_to_keep += (labels == gt_idx)  #logical or
 
-            old_labels = labels #debuggin
+            old_labels = labels #debugging
             # print()
             # print()
             # print('-'*80)
@@ -405,7 +405,8 @@ class BoundingBoxDataset(Dataset):
                 gt_objects = gt_objects[gt_obj_indices_to_keep[:-1]]
             X = X[det_indices_to_keep]
             labels = labels[det_indices_to_keep]
-
+            FP_labels = FP_labels[det_indices_to_keep]
+            
             #reindex labels
             # print("old_labels:", old_labels)
             # print("labels:", labels)
@@ -456,7 +457,6 @@ class BoundingBoxDataset(Dataset):
 
             # sleep(temps)
             # sleep(labelshape)
-            FP_labels = torch.zeros(labels.shape)
 
             #the number of gt that match to the sampled TP detections
             # remaining_gt_count = torch.max(labels) + 1

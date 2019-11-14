@@ -94,7 +94,9 @@ net = model.net.cuda()
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
 
-net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_2ktrain.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_2ktrain.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_1ktrain_classInput.tar')))
+
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP_2ktrain.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_train1000_GausCRPS_ioup9.tar')))#semi decent results, best so far
@@ -116,7 +118,8 @@ if FP_removal_model is not None:
     fp_removal_dir = os.path.join(results_path, module_name, fp_run_name)
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train10k.tar')))
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar'))) #semi decent results, best so far
-    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar'))) 
+    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar'))) 
+    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_GausML_IOUp5_minScoreP2_200train.tar'))) 
 
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_shortTraining.tar')))
 
@@ -552,7 +555,7 @@ for batch in tqdm(test_loader):
 
 
 
-    FP_removal_model = None
+    # FP_removal_model = None
     fp_cutoff_score = 1
     if FP_removal_model is not None:
         pred_bbox, logits = fp_removal_net(batch['X'].cuda(), mask=mask)

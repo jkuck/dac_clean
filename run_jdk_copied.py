@@ -31,8 +31,9 @@ if args.seed is not None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-MODE = 'FP_removal'
-# MODE = 'clustering'
+# MODE = 'FP_removal'
+MODE = 'clustering'
+MODE1 = 'FP_removal_then_cluster'
 module, module_name = load_module(args.modelfile)
 model = module.load(args)
 exp_id = '{}_{}'.format(module_name, args.run_name)
@@ -63,15 +64,15 @@ train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresea
                                          num_classes=80, mode=MODE)
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny100_GausML_IOUp5_minScoreP2.json',\
+test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_minScoreP2.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp5.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp9_minScoreP2.json',\
 # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
                                          num_classes=80, mode=MODE)
-train_loader = DataLoader(train_dataset, batch_size=100,
+train_loader = DataLoader(train_dataset, batch_size=16,
                         shuffle=True, num_workers=0, collate_fn=pad_collate)
-test_loader = DataLoader(test_dataset, batch_size=100,
+test_loader = DataLoader(test_dataset, batch_size=16,
                         shuffle=True, num_workers=0, collate_fn=pad_collate)
 
 def train():
@@ -80,6 +81,9 @@ def train():
 
     model.load_from_ckpt()
 
+    if MODE1 == 'FP_removal_then_cluster':
+        model.metrics = ["loss", "FP_loss", "FP_bcent", "cluster_loss", "cluster_bcent"]
+    print("model.metrics:", model.metrics)
     # save hyperparams
     with open(os.path.join(save_dir, 'args.json'), 'w') as f:
         json.dump(args.__dict__, f, sort_keys=True, indent=4)
@@ -106,7 +110,7 @@ def train():
             # print('-'*80)
             net.train()
             optimizer.zero_grad()
-            loss = model.loss_fn(batch, mode=MODE)
+            loss = model.loss_fn(batch, mode=MODE1)
             loss.backward()
             nn.utils.clip_grad_norm_(net.parameters(), args.clip)
             optimizer.step()
@@ -136,7 +140,7 @@ def test(accm=None, verbose=True):
     accm = Accumulator(*model.metrics) if accm is None else accm
     with torch.no_grad():
         for i, batch in enumerate(test_loader):
-            accm.update(model.loss_fn(batch, mode=MODE, train=False))
+            accm.update(model.loss_fn(batch, mode=MODE1, train=False))
 
     line = accm.info(header='test')
     if verbose:

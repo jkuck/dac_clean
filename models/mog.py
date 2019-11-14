@@ -100,56 +100,28 @@ class FindCluster_2stage(nn.Module):
     #run a FP removal network, then a clustering network
     def __init__(self, input_dim=5, output_dim=4, dim_hids=128, num_inds=32):
         super().__init__()
-        self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.FP_removal_net = FindCluster(input_dim=89, output_dim=4)
+        self.cluster_net = FindCluster(input_dim=89, output_dim=4)
 
-        self.isab1 = StackedISAB(input_dim, dim_hids, num_inds, 4)
-        self.pma = PMA(dim_hids, dim_hids, 1)
-        self.fc1 = nn.Linear(dim_hids, output_dim)
+    def forward(self, X, mask, predict_from_clustering=False):
+        _, FP_logits = self.FP_removal_net(X, mask)
+        # return -1, -1, FP_logits
 
-        self.mab = MAB(dim_hids, dim_hids, dim_hids)
-        self.isab2 = StackedISAB(dim_hids, dim_hids, num_inds, 4)
-        self.fc2 = nn.Linear(dim_hids, 1)
+        fp_cutoff_score = 0
+        ind = (FP_logits.squeeze(dim=2) > fp_cutoff_score)
+        # print("mask.shape:", mask.shape)
+        # print("FP_logits.shape:", FP_logits.shape)
+        # print("ind.shape:", ind.shape)
+        
+        # mask[ind] = True
+        new_mask = mask.clone()
+        new_mask[ind] = True
 
-    def forward(self, X, mask=None, predict_from_clustering=False):
-        # print("X.shape:", X.shape)
-        H_enc = self.isab1(X, mask=mask)
-        Z = self.pma(H_enc, mask=mask)
-        pred_bbox = self.fc1(Z)
+        pred_bbox, cluster_logits = self.cluster_net(X, new_mask)
+          
+        return pred_bbox, cluster_logits, FP_logits, new_mask
+        # return pred_bbox, cluster_logits, -1
 
-        H_dec = self.mab(H_enc, Z)
-        logits = self.fc2(self.isab2(H_dec, mask=mask))
-
-        if predict_from_clustering:
-            # assert(False), "implement variance voting here!!"
-            # print("params.shape:", params.shape)
-            # sleep(temps)
-            logit_threshold = 0
-            if mask is not None:
-                # print("torch.sum(mask[0]):", torch.sum(mask[0]))
-                clustered_TP_indices = torch.where((logits.repeat(1,1,4)>logit_threshold) * #logical and
-                                                   (mask == 0))
-            else:
-                clustered_TP_indices = torch.where(logits.repeat(1,1,4)>logit_threshold)
-            clusters = X[clustered_TP_indices]
-
-            # pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
-            for b_idx in range(pred_bbox.shape[0]):
-                if torch.where(clustered_TP_indices[0] == b_idx)[0].size()[0] > 0:
-                    # print("params[b_idx,0,:2].shape:", params[b_idx,0,:2].shape)
-                    # print("torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape:", torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,2), dim=0).shape)
-                    pred_bbox[b_idx,0,:4] = torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,4), dim=0)
-                    # print("pred_bbox.shape:", pred_bbox.shape)
-                    # sleep(lasdfkj)
-                    #take max prediction score
-                    # pred_bbox[b_idx,0,4] = torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]])
-                    # pred_bbox[b_idx,0,5] = torch.mean(clusters[torch.where(clustered_TP_indices[0] == b_idx)[0]].reshape(-1,1), dim=0)
-
-        # print("pred_bbox.shape:", pred_bbox.shape)
-        pred_bbox[:, :, 2] = pred_bbox[:, :, 2] + pred_bbox[:, :, 0]
-        pred_bbox[:, :, 3] = pred_bbox[:, :, 3] + pred_bbox[:, :, 1]        
-
-        return pred_bbox, logits
 class Model(ModelTemplate):
     def __init__(self, args):
         super().__init__(args)
@@ -161,7 +133,9 @@ class Model(ModelTemplate):
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
                 'mog_10_100_16.tar' if self.clusterfile is None else self.clusterfile)
         # self.net = FindCluster(MultivariateNormalDiag(2))
-        self.net = FindCluster(input_dim=89, output_dim=4)
+        # self.net = FindCluster(input_dim=89, output_dim=4)
+        self.net = FindCluster_2stage(input_dim=89, output_dim=4)
+
 
     def gen_benchmarks(self, force=False):
         if not os.path.isfile(self.testfile) or force:
