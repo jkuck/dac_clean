@@ -35,12 +35,12 @@ NUM_IMAGES = 100
 # DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GaussianCRPS_IOUp5.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
-DATA_NAME ='start0_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
+DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
 
 # DATA_NAME ='start0_tiny%d_GaussianCRPS_IOUp9.json' % NUM_IMAGES
 
-# COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
-COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
+COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
+# COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 
 DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_%s' % DATA_NAME
 # DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json'
@@ -62,9 +62,11 @@ module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
 print("args:", args)
-args.run_name = 'bbox_clustering'
+# args.run_name = 'bbox_clustering'
+args.run_name = 'bbox_twostage'
 # args.run_name = 'trial'
-FP_removal_model = 'models/mog.p'
+# FP_removal_model = 'models/mog.p'
+FP_removal_model = None
 if FP_removal_model is not None:
     # fp_run_name = 'fp_removal_network'
     # fp_run_name = 'const_num_fp_removal_network'
@@ -92,10 +94,12 @@ net = model.net.cuda()
 
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp9_minScoreP001_noFP.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP.tar')))
-# net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
 
+
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_400epoch.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_2ktrain.tar')))
-net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_1ktrain_classInput.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_1ktrain_classInput.tar')))
 
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP_2ktrain.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_withFP.tar')))
@@ -554,12 +558,14 @@ for batch in tqdm(test_loader):
 
 
 
-
-    # FP_removal_model = None
+    FP_removal_model = None
     fp_cutoff_score = 1
     if FP_removal_model is not None:
         pred_bbox, logits = fp_removal_net(batch['X'].cuda(), mask=mask)
+        ind = (logits > fp_cutoff_score)
+        mask[ind] = True          
 
+         
         #debug, check loss
         CHECK_LOSS = False
         if CHECK_LOSS:
@@ -569,17 +575,19 @@ for batch in tqdm(test_loader):
             # print("logits:", logits)
             # print("FP_labels:", FP_labels)
             # print("mask.shape:", mask.shape)
+
             loss, bcent = compute_FP_removal_loss(logits, FP_labels, mask.squeeze())
+
+
+
             # print("loss:", loss)
             # print("bcent:", bcent)
             # print()
             # sleep(checkloss)
         #end debug, check loss
-        ind = (logits > fp_cutoff_score)
         # print("mask.shape:", mask.shape)
         # print("logits.shape:", logits.shape)
         # print("ind.shape:", ind.shape)
-        mask[ind] = True          
 
 
     true_labels = batch['labels']

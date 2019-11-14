@@ -277,24 +277,58 @@ class ModelTemplate(object):
         B, N = X.shape[0], X.shape[1]
         self.net.eval()
 
+        mode = 'twostage'
+        assert(mode in ['onestage', 'twostage']), (mode)
+
+        fp_cutoff_score = 0
+        cluster_cutoff_score = 0
         with torch.no_grad():
             score=.99
         
-            pred_bbox, logits = self.net(X)
+
+
+            if mode == 'onestage':
+                pred_bbox, logits = self.net(X)
+                labels = -1*torch.ones_like(logits).squeeze(-1).int()
+
+            elif mode == 'twostage':
+                # two stage fp removal then cluster
+                pred_bbox, cluster_logits, FP_logits, new_mask = self.net(X, mask=mask)
+                labels = -1*torch.ones_like(FP_logits).squeeze(-1).int()
+
+            if mask is not None:
+                labels[mask.squeeze(-1)] = max_iter+1
+
+            
             pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
             pred_bbox[:,:,4] = score
             bboxes = [pred_bbox]
 
-            labels = torch.zeros_like(logits).squeeze(-1).int()
+            
             if mask is None:
-                mask = (logits > 0.0)
-                done = mask.sum((1,2)) == N
+                if mode == 'onestage':
+                    ind = (logits > 0.0)
+                    labels[ind] = 0
+                    mask = ind
+
+                elif mode == 'twostage':
+                    ind = (FP_logits > fp_cutoff_score) + (cluster_logits > cluster_cutoff_score) #logical or
+                    labels[ind] = 0
+                    mask = ind
+
             else:
-                ind = logits > 0.0
-                labels[mask.squeeze(-1)] = max_iter+1
-                # labels[(ind*mask.bitwise_not()).squeeze(-1)] = -1
-                mask[ind] = True                
-                done = mask.sum((1,2)) == N
+                if mode == 'onestage':
+                    ind = logits > 0.0
+                    labels[(ind*mask.bitwise_not()).squeeze(-1)] = 0
+                    mask[ind] = True                       
+                elif mode == 'twostage':
+                    label_ind = (cluster_logits > cluster_cutoff_score) #logical or
+                    labels[(label_ind*mask.bitwise_not()).squeeze(-1)] = 0
+                    mask_ind = (FP_logits > fp_cutoff_score) + (cluster_logits > cluster_cutoff_score) #logical or
+                    mask[mask_ind] = True  
+             
+            
+            done = mask.sum((1,2)) == N
 
             for i in range(1, max_iter):
                 if max_iter_tensor is not None:
@@ -308,16 +342,25 @@ class ModelTemplate(object):
                             assert((mask[b_idx] == 1).all())
                             labels[b_idx][torch.where(labels[b_idx] == 0)] = max_iter + 1
 
-                pred_bbox, logits = self.net(X, mask=mask)
+                if mode == 'onestage':
+                    pred_bbox, logits = self.net(X, mask=mask)
+                    ind = logits > 0.0
+                    labels[(ind*mask.bitwise_not()).squeeze(-1)] = i
+                    mask[ind] = True  
+                elif mode == 'twostage':
+                    # two stage fp removal then cluster
+                    pred_bbox, cluster_logits, FP_logits, new_mask = self.net(X, mask=mask)                
+                    label_ind = (cluster_logits > cluster_cutoff_score) #logical or
+                    labels[(label_ind*mask.bitwise_not()).squeeze(-1)] = i
+                    mask_ind = (FP_logits > fp_cutoff_score) + (cluster_logits > cluster_cutoff_score) #logical or
+                    mask[mask_ind] = True 
                 print("pred_bbox.shape:", pred_bbox.shape)
                 pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
                 score -= .01
                 pred_bbox[:,:,4] = score
                 bboxes.append(pred_bbox)
 
-                ind = logits > 0.0
-                labels[(ind*mask.bitwise_not()).squeeze(-1)] = i
-                mask[ind] = True
+
 
                 num_processed = mask.sum((1,2))
                 done = num_processed == N

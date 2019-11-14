@@ -25,7 +25,7 @@ parser.add_argument('--N', type=int, default=1000)
 parser.add_argument('--K', type=int, default=4)
 parser.add_argument('--lr', type=float, default=5e-4)
 # parser.add_argument('--num_steps', type=int, default=20000)
-parser.add_argument('--num_steps', type=int, default=200)
+parser.add_argument('--num_steps', type=int, default=1000)
 # parser.add_argument('--num_steps', type=int, default=300)
 parser.add_argument('--testfile', type=str, default=None)
 parser.add_argument('--clusterfile', type=str, default=None)
@@ -133,8 +133,8 @@ class Model(ModelTemplate):
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
                 'mog_10_100_16.tar' if self.clusterfile is None else self.clusterfile)
         # self.net = FindCluster(MultivariateNormalDiag(2))
-        # self.net = FindCluster(input_dim=89, output_dim=4)
-        self.net = FindCluster_2stage(input_dim=89, output_dim=4)
+        self.net = FindCluster(input_dim=89, output_dim=4)
+        # self.net = FindCluster_2stage(input_dim=89, output_dim=4)
 
 
     def gen_benchmarks(self, force=False):
