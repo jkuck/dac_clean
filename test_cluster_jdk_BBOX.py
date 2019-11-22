@@ -31,18 +31,21 @@ import matplotlib.image as mpimg
 BATCH_SIZE = 20
 
 NUM_IMAGES = 100
+RETURN_CLS_INFO = True #if true 89 dimensional inputs, with one hot encoding of 80 classes
+REMOVE_ALL_FP_DATA = False
+
 # DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
 # DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GaussianCRPS_IOUp5.json' % NUM_IMAGES
 # DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
 
-# DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
-DATA_NAME ='start0_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
+DATA_NAME ='start100000_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
+# DATA_NAME ='start0_tiny%d_GausML_IOUp5_minScoreP2.json' % NUM_IMAGES
 
 # DATA_NAME ='start0_tiny%d_GaussianCRPS_IOUp9.json' % NUM_IMAGES
 
-# COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
-COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
+COCO_DATA_NAME ='start100000_tiny%d.json' % NUM_IMAGES
+# COCO_DATA_NAME ='start0_tiny%d.json' % NUM_IMAGES
 
 DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_%s' % DATA_NAME
 # DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json'
@@ -50,10 +53,12 @@ DATASET_NAME = '/home/lyft/software/perceptionresearch/object_detection/mmdetect
 parser = argparse.ArgumentParser()
 parser.add_argument('--modelfile', type=str, default='models/mog.py')
 # parser.add_argument('--run_name', type=str, default='bbox_clustering')
-parser.add_argument('--run_name', type=str, default='trial')
+# parser.add_argument('--run_name', type=str, default='trial')
 parser.add_argument('--max_iter', type=int, default=50)
 parser.add_argument('--filename', type=str, default='test_cluster.log')
 parser.add_argument('--gpu', type=str, default='0')
+parser.add_argument('--return_cls_info_model', type=bool, default=False) #if true 89 dimensional inputs, with one hot encoding of 80 classes')
+
 args, _ = parser.parse_known_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -64,7 +69,8 @@ module, module_name = load_module(args.modelfile)
 model = module.load(args)
 print(str(args))
 print("args:", args)
-args.run_name = 'bbox_clustering'
+args.run_name = 'reproduce_NoClassInfo'
+# args.run_name = 'bbox_clustering'
 # args.run_name = 'bbox_twostage'
 # args.run_name = 'trial'
 FP_removal_model = 'models/mog.p'
@@ -76,12 +82,13 @@ if FP_removal_model is not None:
     run_name = getattr(args, 'run_name')
     setattr(args, 'run_name', fp_run_name)
     print("args:", args)
-
+    args.return_cls_info_model=True
     fp_removal_module, fp_removal_module_name = load_module(args.modelfile)
+    print("type(module)", type(module))
+    # sleep(lsdfk)
     fp_removal_model = fp_removal_module.load(args)
     setattr(args, 'run_name', run_name)
     # setattr(args, 'run_name', run_name + '_WITH_fp_removal_network')
-
 
 
 
@@ -98,14 +105,15 @@ net = model.net.cuda()
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP.tar')))
 
 
-# net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
-# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_400epoch.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny100k_GausML_IOUp5_minScoreP2_100epoch_withCls_LamdaP01.tar')))
+net.load_state_dict(torch.load(os.path.join(save_dir, 'model.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny100_GausML_IOUp5_minScoreP2_2kepoch_noCls_Lamda1k.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_2ktrain.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 'model_tiny100_GausML_IOUp5_minScoreP2_noFP_1ktrain_classInput.tar')))
 #reproduce
 # net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_2kepoch.tar')))
 # net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_200epoch.tar')))
-net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny100_GausML_IOUp5_minScoreP2_2kepoch.tar')))
+# net.load_state_dict(torch.load(os.path.join(save_dir, 's0tiny100_GausML_IOUp5_minScoreP2_2kepoch.tar')))
 
 
 
@@ -135,15 +143,19 @@ if FP_removal_model is not None:
 
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_GausML_IOUp5_minScoreP2_200train.tar'))) 
     #reproduce
-    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_200epoch.tar'))) 
+    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 's0tiny1000_GausML_IOUp5_minScoreP2_200epoch.tar'))) 
+
+    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 's0tiny100k_GausML_IOUp5_minScoreP2_5epoch.tar'))) 
+    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 's0tiny100k_GausML_IOUp5_minScoreP2_100epoch_clsInfo.tar'))) 
+
 
 
     # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_shortTraining.tar')))
 
     fp_removal_net.eval()
 
-test_dataset = BoundingBoxDataset(filename=DATASET_NAME, num_classes=80, mode='FP_removal')
-# test_dataset = BoundingBoxDataset(filename=DATASET_NAME, num_classes=80, mode='clustering')
+test_dataset = BoundingBoxDataset(filename=DATASET_NAME, num_classes=80, mode='FP_removal', return_cls_info=RETURN_CLS_INFO, remove_all_FP=REMOVE_ALL_FP_DATA)
+# test_dataset = BoundingBoxDataset(filename=DATASET_NAME, num_classes=80, mode='clustering', return_cls_info=RETURN_CLS_INFO, remove_all_FP=REMOVE_ALL_FP_DATA)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=1, collate_fn=pad_collate)
 
@@ -492,7 +504,7 @@ def evaluate_bbox_results_DEBUG_WITH_GT(all_bboxes, all_labels, all_batches, BAT
         cur_batch_size = len(all_batches[batch_idx]['gt_objects'])
         assert(cur_batch_size == len(all_batches[batch_idx]['cls_idx']))
         assert(cur_batch_size == len(all_batches[batch_idx]['img_idx']))
-        print("all_batches[batch_idx]:", all_batches[batch_idx])
+        # print("all_batches[batch_idx]:", all_batches[batch_idx])
         for instance_idx in range(cur_batch_size):
             valid_bboxes = all_batches[batch_idx]['gt_objects'][instance_idx]
             valid_bboxes = torch.cat([valid_bboxes, torch.zeros(valid_bboxes.shape[0], 6, device=valid_bboxes.device)], dim=1)
@@ -516,7 +528,7 @@ def evaluate_bbox_results_DEBUG_WITH_GT(all_bboxes, all_labels, all_batches, BAT
     boxes_as_results = []
     num_classes = 80
     for img_idx in range(num_images):
-        print("img_idx:", img_idx)
+        # print("img_idx:", img_idx)
         if img_idx not in all_results:
             boxes_as_results.append(bbox2result(torch.ones(0), torch.ones(0), num_classes))
         else:
@@ -524,7 +536,7 @@ def evaluate_bbox_results_DEBUG_WITH_GT(all_bboxes, all_labels, all_batches, BAT
             img_labels = []
             for cls_idx in range(80):
                 if cls_idx in all_results[img_idx] and (torch.sum(all_results[img_idx][cls_idx], dim=1) > 0).any():
-                    print("non empty class:", cls_idx)
+                    # print("non empty class:", cls_idx)
                     # print("bboxes:", all_results[img_idx][cls_idx])
                     # sleep(temp1)
                     valid_rows = torch.where(torch.sum(all_results[img_idx][cls_idx], dim=1) > 0)
@@ -571,8 +583,8 @@ for batch in tqdm(test_loader):
 
 
 
-    FP_removal_model = None
-    fp_cutoff_score = 1
+    # FP_removal_model = None
+    fp_cutoff_score = 9999999
     if FP_removal_model is not None:
         pred_bbox, logits = fp_removal_net(batch['X'].cuda(), mask=mask)
         ind = (logits > fp_cutoff_score)
@@ -607,32 +619,60 @@ for batch in tqdm(test_loader):
     # print("mask.shape:",mask.shape)
     # print("logits.shape:",logits.shape)
     # print("true_labels.shape:",true_labels.shape)
-    # # print("predicted labels.shape:",labels.shape)
-    # for instance_idx in range(true_labels.shape[0]):
-    #     for detection_idx in range(true_labels.shape[1]):
-    #         if true_labels[instance_idx][detection_idx] == -99:
-    #             continue
-    #         gt_obj_count = batch['gt_obj_count'][instance_idx]
-    #         # if true_labels[instance_idx][detection_idx] == gt_obj_count and labels[instance_idx][detection_idx] == 51:
-    #         if true_labels[instance_idx][detection_idx] == gt_obj_count and logits[instance_idx][detection_idx] > fp_cutoff_score:
-    #             # is FP, predicted FP
-    #             isFP_predFP_count += 1
-    #         # if true_labels[instance_idx][detection_idx] != gt_obj_count and labels[instance_idx][detection_idx] == 51:
-    #         if true_labels[instance_idx][detection_idx] != gt_obj_count and logits[instance_idx][detection_idx] > fp_cutoff_score:
-    #             # is TP, predicted FP
-    #             isTP_predFP_count += 1
-    #         # if true_labels[instance_idx][detection_idx] == gt_obj_count and labels[instance_idx][detection_idx] != 51:
-    #         if true_labels[instance_idx][detection_idx] == gt_obj_count and logits[instance_idx][detection_idx] < fp_cutoff_score:
-    #             # is FP, predicted TP
-    #             isFP_predTP_count += 1
-    #         # if true_labels[instance_idx][detection_idx] != gt_obj_count and labels[instance_idx][detection_idx] != 51:
-    #         if true_labels[instance_idx][detection_idx] != gt_obj_count and logits[instance_idx][detection_idx] < fp_cutoff_score:
-    #             # is TP, predicted TP                
-    #             isTP_predTP_count += 1
+    # print("predicted labels.shape:",labels.shape)
+    for instance_idx in range(true_labels.shape[0]):
+        for detection_idx in range(true_labels.shape[1]):
+            if true_labels[instance_idx][detection_idx] == -99:
+                continue
+            gt_obj_count = batch['gt_obj_count'][instance_idx]
+            # if true_labels[instance_idx][detection_idx] == gt_obj_count and labels[instance_idx][detection_idx] == 51:
+            if true_labels[instance_idx][detection_idx] == gt_obj_count and logits[instance_idx][detection_idx] > fp_cutoff_score:
+                # is FP, predicted FP
+                isFP_predFP_count += 1
+            # if true_labels[instance_idx][detection_idx] != gt_obj_count and labels[instance_idx][detection_idx] == 51:
+            if true_labels[instance_idx][detection_idx] != gt_obj_count and logits[instance_idx][detection_idx] > fp_cutoff_score:
+                # is TP, predicted FP
+                isTP_predFP_count += 1
+            # if true_labels[instance_idx][detection_idx] == gt_obj_count and labels[instance_idx][detection_idx] != 51:
+            if true_labels[instance_idx][detection_idx] == gt_obj_count and logits[instance_idx][detection_idx] < fp_cutoff_score:
+                # is FP, predicted TP
+                isFP_predTP_count += 1
+            # if true_labels[instance_idx][detection_idx] != gt_obj_count and labels[instance_idx][detection_idx] != 51:
+            if true_labels[instance_idx][detection_idx] != gt_obj_count and logits[instance_idx][detection_idx] < fp_cutoff_score:
+                # is TP, predicted TP                
+                isTP_predTP_count += 1
 
 
+    #only keep gt obects that correspond to detections that were not removed by fp_removal network to upper bound performance
+    remaining_gt_objects_each_instance = []
+    for instance_idx in range(true_labels.shape[0]):
+        remaining_gt_indices = []
+        gt_obj_count = batch['gt_obj_count'][instance_idx]
+        for detection_idx in range(true_labels.shape[1]):
+            if logits[instance_idx][detection_idx] < fp_cutoff_score and batch['labels'][instance_idx][detection_idx] < gt_obj_count and\
+               batch['det_mask'][instance_idx][detection_idx] != 1 and\
+               batch['labels'][instance_idx][detection_idx] not in remaining_gt_indices:
+                remaining_gt_indices.append(batch['labels'][instance_idx][detection_idx])
+        remaining_gt_objects = []
+        # print("remaining_gt_indices:", remaining_gt_indices)
+        for gt_idx in remaining_gt_indices:
+            # print(gt_idx)
+            remaining_gt_objects.append(batch['gt_objects'][instance_idx][int(gt_idx.item())])
 
+        padded_remaining_gt_objects = -99*torch.ones(batch['gt_objects'].shape[1], batch['gt_objects'].shape[2])
+        if len(remaining_gt_indices) > 0:
+            # print("len(remaining_gt_indices):", len(remaining_gt_indices))
+            remaining_gt_objects = torch.stack(remaining_gt_objects, dim=0)
+            padded_remaining_gt_objects[:remaining_gt_objects.shape[0]] = remaining_gt_objects
+            # print("remaining_gt_objects.shape:", remaining_gt_objects.shape)
+        # else:
+            # print("no remaining gt objects")
+        remaining_gt_objects_each_instance.append(padded_remaining_gt_objects)
 
+    # print("batch['gt_objects'].shape:", batch['gt_objects'].shape)
+    batch['gt_objects'] = torch.stack(remaining_gt_objects_each_instance, dim=0)
+    # print("batch['gt_objects'].shape:", batch['gt_objects'].shape)
+    # sleep(temps)
 
     # gt_objects = torch.tensor(img_data['assoc_gt_bboxes'])
     # cur_gt_object_count = gt_objects.shape[0]
@@ -648,7 +688,10 @@ for batch in tqdm(test_loader):
     #         max_iter=args.max_iter, verbose=False, check=True, mask=mask,
             # max_iter_tensor=gt_count_cur_img)
 
-    bboxes, labels, fail = model.cluster(batch['X'].cuda(),
+    # print("batch['X'].shape:", batch['X'].shape)
+    # sleep(lwnebo)
+    bboxes, labels, fail = model.cluster(batch['X'][:,:,:9].cuda(), #for fp removal network that uses cls info and clustering network that does not
+    # bboxes, labels, fail = model.cluster(batch['X'].cuda(),
             max_iter=args.max_iter, verbose=False, check=True, mask=mask)
 
     # print(len(bboxes))
@@ -676,8 +719,8 @@ print("isFP_predTP_count:", isFP_predTP_count)
 print("isTP_predFP_count:", isTP_predFP_count)
 print("isFP_predFP_count:", isFP_predFP_count)
 # sleep(fpcounts)
-evaluate_bbox_results(all_bboxes, all_labels, all_batches, BATCH_SIZE, NUM_IMAGES)
-# evaluate_bbox_results_DEBUG_WITH_GT(all_bboxes, all_labels, all_batches, BATCH_SIZE, NUM_IMAGES)
+# evaluate_bbox_results(all_bboxes, all_labels, all_batches, BATCH_SIZE, NUM_IMAGES)
+evaluate_bbox_results_DEBUG_WITH_GT(all_bboxes, all_labels, all_batches, BATCH_SIZE, NUM_IMAGES)
 
 
 

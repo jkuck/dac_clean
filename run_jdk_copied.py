@@ -10,10 +10,12 @@ import json
 from utils.log import get_logger, Accumulator
 from utils.misc import load_module
 from utils.paths import results_path, benchmarks_path
-from data.bounding_boxes import BoundingBoxDataset, pad_collate
+# from data.bounding_boxes import BoundingBoxDataset, pad_collate
+from data.bounding_boxes_postNMS import BoundingBoxDataset, pad_collate
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--modelfile', type=str, default='models/mog.py')
+# parser.add_argument('--modelfile', type=str, default='models/mog.py')
+parser.add_argument('--modelfile', type=str, default='models/bbox_postNMS.py')
 parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
 parser.add_argument('--gpu', type=str, default='0')
@@ -23,6 +25,8 @@ parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--clip', type=float, default=10.0)
 parser.add_argument('--save_all', action='store_true')
 parser.add_argument('--regen_benchmarks', action='store_true')
+parser.add_argument('--return_cls_info_model', type=bool, default=True) #if true 89 dimensional inputs, with one hot encoding of 80 classes')
+
 args, _ = parser.parse_known_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -32,9 +36,11 @@ if args.seed is not None:
     torch.cuda.manual_seed(args.seed)
 
 # MODE = 'FP_removal'
-MODE = 'clustering'
+# MODE = 'clustering'
+MODE = 'bbox_postNMS'
 MODE1 = MODE
-
+RETURN_CLS_INFO = True #if true 89 dimensional inputs, with one hot encoding of 80 classes
+POST_NMS = True
 # MODE1 = 'FP_removal_then_cluster'
 
 module, module_name = load_module(args.modelfile)
@@ -50,32 +56,40 @@ model.gen_benchmarks(force=args.regen_benchmarks)
 # train_loader = model.get_train_loader()
 # test_loader = model.get_test_loader()
 
-# jdk_data/
+#post NMS
+if POST_NMS:
+    train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/postNMS_bboxGrps_train2017_start0_tiny100_GausML_IOUp5_minScoreP05.json',\
+                                             num_classes=80, return_cls_info=RETURN_CLS_INFO)
+    test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/postNMS_bboxGrps_train2017_start100000_tiny100_GausML_IOUp5_minScoreP05.json',\
+                                             num_classes=80, return_cls_info=RETURN_CLS_INFO)
+else:
 
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9_minScoreP2.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp5.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GausML_IOUp9_minScoreP2.json',\
+    # jdk_data/
 
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny10.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_allTrain.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-# train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny100_GausML_IOUp5_minScoreP2.json',\
-                                         num_classes=80, mode=MODE)
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_minScoreP2.json',\
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp5.json',\
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp9_minScoreP2.json',\
-# test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
-                                         num_classes=80, mode=MODE)
-train_loader = DataLoader(train_dataset, batch_size=100,
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp9_minScoreP2.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GaussianCRPS_IOUp5.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000_GausML_IOUp9_minScoreP2.json',\
+
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny10.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_allTrain.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
+    # train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
+    train_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny100_GausML_IOUp5_minScoreP2.json',\
+                                             num_classes=80, mode=MODE, return_cls_info=RETURN_CLS_INFO)
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_FPremovalNetProcessed.json',\
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
+    test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp5_minScoreP2.json',\
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp9_minScoreP2.json',\
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GaussianCRPS_IOUp5.json',\
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start100000_tiny100_GausML_IOUp9_minScoreP2.json',\
+    # test_dataset = BoundingBoxDataset(filename='/home/lyft/software/perceptionresearch/object_detection/mmdetection/jdk_data/bboxes_with_assoc_train2017_start0_tiny1000.json',\
+                                             num_classes=80, mode=MODE, return_cls_info=RETURN_CLS_INFO)
+train_loader = DataLoader(train_dataset, batch_size=2000,
                         shuffle=True, num_workers=0, collate_fn=pad_collate)
-test_loader = DataLoader(test_dataset, batch_size=100,
+test_loader = DataLoader(test_dataset, batch_size=2000,
                         shuffle=True, num_workers=0, collate_fn=pad_collate)
 
 def train():

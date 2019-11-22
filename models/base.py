@@ -39,8 +39,10 @@ def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=1.57):
     #BCE on classifying TP/FP
     B, K = FP_labels.shape[0], FP_labels.shape[-1]
     FP_logits = FP_logits.squeeze()
-    # print("FP_logits.shape:", FP_logits.shape)
-    # print("FP_labels.shape:", FP_labels.shape)
+    print("FP_logits.shape:", FP_logits.shape)
+    print("FP_labels.shape:", FP_labels.shape)
+    print("det_mask.shape:", det_mask.shape)
+    print("det_mask:", det_mask)
     # print("FP_logits:", FP_logits)
     # print("FP_labels:", FP_labels)
     # print()
@@ -59,6 +61,21 @@ def compute_FP_removal_loss(FP_logits, FP_labels, det_mask, weight=1.57):
     bcent_loss = torch.sum(bcent_loss)/torch.sum(det_mask.bitwise_not())
 
     return bcent_loss, bcent_loss
+
+def compute_postNMS_classification_loss(logits, labels, weight=7.0):
+    #BCE on classifying TP/FP
+    B, K = labels.shape[0], labels.shape[-1]
+    logits = logits.squeeze()
+    # print("logits.shape:", logits.shape)
+    # print("labels.shape:", labels.shape)
+    # print("logits:", logits)
+    # print("labels:", labels)
+    # print()
+    bcent_loss = F.binary_cross_entropy_with_logits(
+            logits, labels, reduction='none')#,
+            # pos_weight=weight)
+    bcent_loss = torch.mean(bcent_loss)
+    return bcent_loss
 
 def compute_filter_loss_distance(logits, labels, pred_cluster, gt_objects,\
                                  gt_count_per_img, det_mask, weight=5, lamb=.01, verbose=False):
@@ -230,6 +247,13 @@ class ModelTemplate(object):
         X = batch['X'].cuda()
         labels = batch['labels'].cuda().float()
         det_mask = batch['det_mask'].cuda()#.float()
+
+
+        if mode == 'bbox_postNMS':
+            logits = self.net(X, mask=det_mask)
+            bcent_loss = compute_postNMS_classification_loss(logits, labels, det_mask)
+            return bcent_loss
+
         # print("1 X.shape=", X.shape)
         if mode != 'FP_removal_then_cluster':
             pred_bbox, logits = self.net(X, mask=det_mask)
@@ -354,7 +378,7 @@ class ModelTemplate(object):
                     labels[(label_ind*mask.bitwise_not()).squeeze(-1)] = i
                     mask_ind = (FP_logits > fp_cutoff_score) + (cluster_logits > cluster_cutoff_score) #logical or
                     mask[mask_ind] = True 
-                print("pred_bbox.shape:", pred_bbox.shape)
+                # print("pred_bbox.shape:", pred_bbox.shape)
                 pred_bbox = torch.cat([pred_bbox, torch.zeros((pred_bbox.shape[0], pred_bbox.shape[1], 1), device=pred_bbox.device)], dim=2)
                 score -= .01
                 pred_bbox[:,:,4] = score

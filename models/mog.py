@@ -37,6 +37,7 @@ parser.add_argument('--vB', type=int, default=10)
 parser.add_argument('--vN', type=int, default=1000)
 parser.add_argument('--vK', type=int, default=4)
 
+
 sub_args, _ = parser.parse_known_args()
 
 save_dir = os.path.join(results_path, 'mog', sub_args.run_name)
@@ -117,6 +118,9 @@ class FindCluster_2stage(nn.Module):
         new_mask = mask.clone()
         new_mask[ind] = True
 
+        X_cls_info_zeroed = X.clone()
+        X_cls_info_zeroed[:,:,9:] = 0 #remove class info for clustering
+
         pred_bbox, cluster_logits = self.cluster_net(X, new_mask)
           
         return pred_bbox, cluster_logits, FP_logits, new_mask
@@ -125,6 +129,8 @@ class FindCluster_2stage(nn.Module):
 class Model(ModelTemplate):
     def __init__(self, args):
         super().__init__(args)
+        # print("args:", args)
+        # sleep(model)
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)          
         self.testfile = os.path.join(save_dir,
@@ -133,7 +139,10 @@ class Model(ModelTemplate):
                 # 'mog_10_3000_12.tar' if self.clusterfile is None else self.clusterfile)
                 'mog_10_100_16.tar' if self.clusterfile is None else self.clusterfile)
         # self.net = FindCluster(MultivariateNormalDiag(2))
-        self.net = FindCluster(input_dim=89, output_dim=4)
+        if args.return_cls_info_model:
+            self.net = FindCluster(input_dim=89, output_dim=4)
+        else:
+            self.net = FindCluster(input_dim=9, output_dim=4)
         # self.net = FindCluster_2stage(input_dim=89, output_dim=4)
 
 

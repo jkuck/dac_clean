@@ -18,33 +18,36 @@ parser.add_argument('--run_name', type=str, default='bbox_clustering')
 parser.add_argument('--max_iter', type=int, default=50)
 parser.add_argument('--filename', type=str, default='test_cluster.log')
 parser.add_argument('--gpu', type=str, default='0')
+
 args, _ = parser.parse_known_args()
 
-module, module_name = load_module(args.modelfile)
-model = module.load(args)
-print(str(args))
-print("bounding_boxes.py args:", args)
-args.run_name = 'bbox_clustering'
-FP_removal_model = 'models/mog.p'
-FP_removal_model = None
-if FP_removal_model is not None:
-    # fp_run_name = 'fp_removal_network'
-    # fp_run_name = 'const_num_fp_removal_network'
-    fp_run_name = 'bbox_fp_removal'
-    run_name = getattr(args, 'run_name')
-    setattr(args, 'run_name', fp_run_name)
-    print("args:", args)
+LOAD_FP_REMOVAL_NET = False
+if LOAD_FP_REMOVAL_NET:
+    module, module_name = load_module(args.modelfile)
+    model = module.load(args)
+    print(str(args))
+    print("bounding_boxes.py args:", args)
+    args.run_name = 'bbox_clustering'
+    FP_removal_model = 'models/mog.p'
+    FP_removal_model = None
+    if FP_removal_model is not None:
+        # fp_run_name = 'fp_removal_network'
+        # fp_run_name = 'const_num_fp_removal_network'
+        fp_run_name = 'bbox_fp_removal'
+        run_name = getattr(args, 'run_name')
+        setattr(args, 'run_name', fp_run_name)
+        print("args:", args)
 
-    fp_removal_module, fp_removal_module_name = load_module(args.modelfile)
-    fp_removal_model = fp_removal_module.load(args)
-    setattr(args, 'run_name', run_name)
-    fp_removal_net = fp_removal_model.net.cuda()
-    fp_removal_dir = os.path.join(results_path, module_name, fp_run_name)
-    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train10k.tar')))
-    fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar')))
-    # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_shortTraining.tar')))
+        fp_removal_module, fp_removal_module_name = load_module(args.modelfile)
+        fp_removal_model = fp_removal_module.load(args)
+        setattr(args, 'run_name', run_name)
+        fp_removal_net = fp_removal_model.net.cuda()
+        fp_removal_dir = os.path.join(results_path, module_name, fp_run_name)
+        # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train10k.tar')))
+        fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_train1000_GausCRPS_ioup9.tar')))
+        # fp_removal_net.load_state_dict(torch.load(os.path.join(fp_removal_dir, 'model_tiny1000_shortTraining.tar')))
 
-    fp_removal_net.eval()
+        fp_removal_net.eval()
 
 
 
@@ -164,7 +167,7 @@ class BoundingBoxDataset(Dataset):
     '''
 
     def __init__(self, filename='./jdk_data/bboxes_with_assoc.json', num_classes=80,
-                 mode='FP_removal'):
+                 mode='FP_removal', return_cls_info=False, remove_all_FP=True):
         """
         Args:
             filename (string): Path to the json file with data.
@@ -178,7 +181,8 @@ class BoundingBoxDataset(Dataset):
             all_img_data = json.load(f)
         # print("all_img_data:", all_img_data)
         print("file loaded")
-
+        self.return_cls_info = return_cls_info
+        self.remove_all_FP = remove_all_FP
         if mode == 'FP_removal':
             self.all_img_data = [(img_idx, cls_idx, img_cls_data) for (img_idx, img_data) in enumerate(all_img_data) for cls_idx, img_cls_data in img_data.items()]
         elif mode == 'clustering': #only include instances with some TP detections
@@ -251,12 +255,15 @@ class BoundingBoxDataset(Dataset):
             # print('transform std xywh X:', X)
             # print("X.shape:", X.shape)
 
-            X = torch.cat([X, torch.zeros((X.shape[0], 80), device=X.device)], dim=1)
-            X[:, 9+int(cur_cls_idx)] = 1
+            if self.return_cls_info:
+                X = torch.cat([X, torch.zeros((X.shape[0], 80), device=X.device)], dim=1)
+                X[:, 9+int(cur_cls_idx)] = 1
 
         else:
-            # X = torch.zeros((0,9), device=X.device)
-            X = torch.zeros((0,89), device=X.device)
+            if self.return_cls_info:
+                X = torch.zeros((0,89), device=X.device)
+            else:
+                X = torch.zeros((0,9), device=X.device)
 
         # print('X.shape:', X.shape)
 
@@ -271,8 +278,7 @@ class BoundingBoxDataset(Dataset):
         # # print("X.shape:", X.shape)
         # # sleep(xshape)
 
-        remove_all_FP = True
-        if remove_all_FP:
+        if self.remove_all_FP:
             #remove FP detections and labels
             X = X[torch.where(labels != -1)]
             labels = labels[torch.where(labels != -1)]
@@ -352,7 +358,9 @@ class BoundingBoxDataset(Dataset):
             assert(len(X.shape) == 2), (X.shape)
             # print("asldfkj:", gt_object_count, num_gt_objects_to_keep)
             if gt_object_count not in labels:
-                remove_all_FP = True
+                temp_remove_all_FP = True
+            else:
+                temp_remove_all_FP = self.remove_all_FP
 
             permuted_gt_indices = torch.randperm(gt_object_count)
             # print()
@@ -361,7 +369,7 @@ class BoundingBoxDataset(Dataset):
             # print("permuted_gt_indices:", permuted_gt_indices)
             # print("gt_object_count:", gt_object_count)
             # print("num_gt_objects_to_keep:", num_gt_objects_to_keep)
-            if not remove_all_FP:
+            if not temp_remove_all_FP:
                 permuted_gt_indices = torch.cat([permuted_gt_indices, torch.tensor([-9835739])], dim=0) #JUNK, make sure removed
                 # print("a permuted_gt_indices:", permuted_gt_indices)
                 temp_idx = permuted_gt_indices[num_gt_objects_to_keep].item()
@@ -401,7 +409,7 @@ class BoundingBoxDataset(Dataset):
 
             # print("a labels:", labels)
 
-            if remove_all_FP:
+            if temp_remove_all_FP:
                 gt_objects = gt_objects[gt_obj_indices_to_keep]
             else: # skip 'ground truth index' for false positives at the end
                 gt_objects = gt_objects[gt_obj_indices_to_keep[:-1]]
@@ -431,7 +439,7 @@ class BoundingBoxDataset(Dataset):
             _, permutation_indices = torch.sort(permuted_gt_indices)
             # print("permuted_gt_indices:", permuted_gt_indices)
             # print("permutation_indices:", permutation_indices)
-            # if not remove_all_FP:
+            # if not temp_remove_all_FP:
             #     permutation_indices = torch.cat([permutation_indices, torch.tensor([gt_object_count])], dim=0)
             # print("b permutation_indices:", permutation_indices)
             orig_order_new_gt_obj_indices_to_keep = new_gt_obj_indices_to_keep[permutation_indices]
@@ -440,7 +448,7 @@ class BoundingBoxDataset(Dataset):
             new_labels = torch.gather(orig_order_new_gt_obj_indices_to_keep, dim=0, index=labels)
             # print("new_labels:", new_labels)
             assert((new_labels >= 0).all()), new_labels
-            if remove_all_FP:
+            if temp_remove_all_FP:
                 assert((new_labels < num_gt_objects_to_keep).all())
             else:
                 assert((new_labels < num_gt_objects_to_keep+1).all())
